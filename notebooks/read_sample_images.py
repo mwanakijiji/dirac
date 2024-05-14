@@ -6,7 +6,12 @@ from photutils.centroids import centroid_quadratic
 
 stem = '../data/xeneth_frames/20231108/low_gain/'
 #stem = '../data/xeneth_frames/20231108/high_gain/'
+#stem = '../data/xeneth_frames/20240409/'
 
+'''
+file_list_darks = glob.glob(stem + 'darks/*.png')
+file_list_lights = glob.glob(stem + 'zero_position/*.png')
+'''
 file_list_all = glob.glob(stem + '*.png')
 dark_files = sorted([file for file in file_list_all if 'dark' in file])
 light_source_on_files = sorted([file for file in file_list_all if 'light_source_on' in file])
