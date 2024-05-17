@@ -138,7 +138,17 @@ del_x_ll = (x_ll-x_cen)[0]
 del_y_lr = (y_lr-y_cen)[0]
 del_x_lr = (x_lr-x_cen)[0]
 
-# result
+# plate scales from each measurement
+ps_y_ul = np.abs ( 1e3 * 4.2 * 3.689 / del_y_ul ) # [(mas in asec) * mm * const] / pix
+ps_x_ul = np.abs ( 1e3 * 4.2 * 3.689 / del_x_ul )
+ps_y_ur = np.abs ( 1e3 * 4.2 * 3.689 / del_y_ur )
+ps_x_ur = np.abs ( 1e3 * 4.2 * 3.689 / del_x_ur )
+ps_y_ll = np.abs ( 1e3 * 4.2 * 3.689 / del_y_ll )
+ps_x_ll = np.abs ( 1e3 * 4.2 * 3.689 / del_x_ll )
+ps_y_lr = np.abs ( 1e3 * 4.2 * 3.689 / del_y_lr )
+ps_x_lr = np.abs ( 1e3 * 4.2 * 3.689 / del_x_lr )
+
+ps_all = np.array([ps_y_ul, ps_x_ul, ps_y_ur, ps_x_ur, ps_y_ll, ps_x_ll, ps_y_lr, ps_x_lr])
 
 # plot histogram
 '''
@@ -155,24 +165,25 @@ logger.info('-----------------------------------------------------')
 logger.info('-----------------------------------------------------')
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
 logger.info('----------')
-logger.info('Magnitude of expected offsets [pix]: ' + str(3.689 * 4.2 * 1e3 / 32.7 )) # constant * mm  PS
-logger.info('Upper left del_x [pix]: ' + str(del_x_ul))
-logger.info('Upper left del_y [pix]: ' + str(del_y_ul))
-logger.info('Upper right del_x [pix]: ' + str(del_x_ur))
-logger.info('Upper right del_y [pix]: ' + str(del_y_ur))
-logger.info('Lower left del_x [pix]: ' + str(del_x_ll))
-logger.info('Lower left del_y [pix]: ' + str(del_y_ll))
-logger.info('Lower right del_x [pix]: ' + str(del_x_lr))
-logger.info('Lower right del_y [pix]: ' + str(del_y_lr))
+logger.info('Expected offset magnitudes [pix]: ' + str(3.689 * 4.2 * 1e3 / 32.7 )) # constant * mm * (mm in m) / PS
+logger.info('Measured offset, upper left del_x [pix]: ' + str(del_x_ul))
+logger.info('Measured offset, upper left del_y [pix]: ' + str(del_y_ul))
+logger.info('Measured offset, upper right del_x [pix]: ' + str(del_x_ur))
+logger.info('Measured offset, upper right del_y [pix]: ' + str(del_y_ur))
+logger.info('Measured offset, lower left del_x [pix]: ' + str(del_x_ll))
+logger.info('Measured offset, lower left del_y [pix]: ' + str(del_y_ll))
+logger.info('Measured offset, lower right del_x [pix]: ' + str(del_x_lr))
+logger.info('Measured offset, lower right del_y [pix]: ' + str(del_y_lr))
 logger.info('----------')
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Plate scale 32.7 mas/pix')
-#logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured plate scale: ' + str(dark_curr_e) + ' e/pix/sec')
+logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured plate scale: {:.3f} +- {:.3f} mas/pix'.format(np.mean(ps_all), np.std(ps_all)))
+logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Percent variation from ideal: {:.1f}%'.format(100 * np.abs(np.mean(ps_all)-32.7)/32.7))
 #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
 logger.info('--------------------------------------------------')
 '''
 if dark_curr_e < 0.1:
-    logger.info('######   NIRAO-09 result: PASS   ######')
+    logger.info('######   NIRAO-12 result: PASS   ######')
 elif dark_curr_e > 0.1:
-    logger.info('######   NIRAO-09 result: FAIL   ######')
+    logger.info('######   NIRAO-12 result: FAIL   ######')
 '''
 logger.info('--------------------------------------------------')
