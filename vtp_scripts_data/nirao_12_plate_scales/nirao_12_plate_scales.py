@@ -8,8 +8,8 @@ import datetime
 import glob
 from photutils.centroids import centroid_sources, centroid_com
 
-def dark_subt_take_median(raw_science_frame_file_names, bias_array):
-    # reads in list of raw frames, subtracts bias, and returns median of residuals
+def dark_subt_take_median(raw_science_frame_file_names, dark_array):
+    # reads in list of raw frames, subtracts dark, and returns median of residuals
 
     test_array = []
     for i in range(0,len(raw_science_frame_file_names)):
@@ -17,7 +17,7 @@ def dark_subt_take_median(raw_science_frame_file_names, bias_array):
         hdul = fits.open(raw_science_frame_file_names[i])
         sci = hdul[0].data
 
-        sci = sci - bias_array
+        sci = sci - dark_array
 
         test_array.append(sci)
 
@@ -50,46 +50,35 @@ def main(data_date = '20240517'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Measured positions of PSF matches the expected camera pixel position in VTP Table 1 (i.e., PS=32.7 mas/pix).')
     logger.info('-----------------------------------------------------')
 
-    dark_raw_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/20sec.fits'
-    bias_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/100ms.fits'
     badpix_file_name = stem + 'ersatz_bad_pix.fits'
 
-    # positions of micrometer [mm]
-    '''
-    # positions for May 16 data
-    microm_xy = {'cen':np.array([6.565,6.222]),
-                'ul':np.array([10.943,1.875]), 
-                'ur':np.array([2.190,1.850]), 
-                'll':np.array([10.905,10.570]), 
-                'lr':np.array([2.205,10.580])}
-    '''
-
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bad pixel mask: ' + badpix_file_name)
+    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
+    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Dark: ' + dark_file_name)
+    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bad pixel mask: ' + badpix_file_name)
 
     simple_bias_file_names = [stem + 'DIRAC_20240515_135139.fits', stem + 'DIRAC_20240515_135152.fits']
     cds_bias_file_names = [stem + 'DIRAC_20240515_135206.fits', stem + 'DIRAC_20240515_135223.fits']
+    cds_dark_file_names = [stem + 'DIRAC_20240515_134623.fits']
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
     hdul_badpix = fits.open(badpix_file_name, dtype=int)
     badpix = hdul_badpix[0].data
 
-    # make net bias
-    bias_array = []
-    for file_name in simple_bias_file_names:
+    # make net dark
+    dark_array = []
+    for file_name in cds_dark_file_names:
         hdul = fits.open(file_name)
-        bias_this = hdul[0].data
-        bias_array.append(bias_this)
-    bias_simple = np.median(bias_array, axis=0)
+        dark_this = hdul[0].data
+        dark_array.append(dark_this)
+    dark_simple = np.median(dark_array, axis=0)
     # mask bad pixels
-    bias_simple[badpix == 1] = np.nan
+    dark_simple[badpix == 1] = np.nan
 
     # total number of pixels 
-    N_pix_tot = bias_simple.size
+    N_pix_tot = dark_simple.size
     # how many pixels are finite?
-    N_pix_finite = np.nansum(np.isfinite(bias_simple))
+    N_pix_finite = np.nansum(np.isfinite(dark_simple))
     # fraction of good pixels within science region of detector (i.e., 4-pixel-wide overscan region of 16320 pixels removed)
     frac_finite = N_pix_finite/(N_pix_tot - 16320)
 
@@ -98,31 +87,31 @@ def main(data_date = '20240517'):
         ul_raw_frame_file_names = glob.glob(stem + 'DIRAC_20240515_11523[5-9].fits')
         ul_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11524*.fits')
         ul_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11525[0-4]*.fits')
-        ul = dark_subt_take_median(raw_science_frame_file_names=ul_raw_frame_file_names, bias_array=bias_simple)
+        ul = dark_subt_take_median(raw_science_frame_file_names=ul_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for upper right
         ur_raw_frame_file_names = glob.glob(stem + 'DIRAC_20240515_11444[2-9].fits')
         ur_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_1144[5-9]*.fits')
         ur_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11450[0-1]*.fits')
-        ur = dark_subt_take_median(raw_science_frame_file_names=ur_raw_frame_file_names, bias_array=bias_simple)
+        ur = dark_subt_take_median(raw_science_frame_file_names=ur_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for lower left
         ll_raw_frame_file_names = glob.glob(stem + 'DIRAC_20240515_11385[7-9].fits')
         ll_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_1138[6-9]*.fits')
         ll_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11390[0-7]*.fits')
-        ll = dark_subt_take_median(raw_science_frame_file_names=ll_raw_frame_file_names, bias_array=bias_simple)
+        ll = dark_subt_take_median(raw_science_frame_file_names=ll_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for lower right
         lr_raw_frame_file_names = glob.glob(stem + 'DIRAC_20240515_11411[6-9].fits')
         lr_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11412*.fits')
         lr_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_114130.fits')
-        lr = dark_subt_take_median(raw_science_frame_file_names=lr_raw_frame_file_names, bias_array=bias_simple)
+        lr = dark_subt_take_median(raw_science_frame_file_names=lr_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for center
         cen_raw_frame_file_names = glob.glob(stem + 'DIRAC_20240515_11252[7-9].fits')
         cen_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11253*.fits')
         cen_raw_frame_file_names += glob.glob(stem + 'DIRAC_20240515_11254[0-1].fits')
-        cen = dark_subt_take_median(raw_science_frame_file_names=cen_raw_frame_file_names, bias_array=bias_simple)
+        cen = dark_subt_take_median(raw_science_frame_file_names=cen_raw_frame_file_names, dark_array=dark_simple)
 
         # centroid the PSFs
         x_ul, y_ul = centroid_sources(data=ul, xpos=[998], ypos=[30], box_size=21, centroid_func=centroid_com)
@@ -131,6 +120,7 @@ def main(data_date = '20240517'):
         x_lr, y_lr = centroid_sources(data=lr, xpos=[23], ypos=[1000], box_size=21, centroid_func=centroid_com)
         x_cen, y_cen = centroid_sources(data=cen, xpos=[511], ypos=[511], box_size=21, centroid_func=centroid_com)
 
+
     elif data_date == '20240517': 
         # read/process set of frames corresponding to upper left (of micrometer space; coords are flipped on readout)
         
@@ -138,26 +128,26 @@ def main(data_date = '20240517'):
         '''
         ul_raw_frame_file_names = glob.glob(stem + '')
 
-        ul = dark_subt_take_median(raw_science_frame_file_names=ul_raw_frame_file_names, bias_array=bias_simple)
+        ul = dark_subt_take_median(raw_science_frame_file_names=ul_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for upper right
         ur_raw_frame_file_names = glob.glob(stem + '')
 
-        ur = dark_subt_take_median(raw_science_frame_file_names=ur_raw_frame_file_names, bias_array=bias_simple)
+        ur = dark_subt_take_median(raw_science_frame_file_names=ur_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for lower left
         ll_raw_frame_file_names = glob.glob(stem + '')
 
-        ll = dark_subt_take_median(raw_science_frame_file_names=ll_raw_frame_file_names, bias_array=bias_simple)
+        ll = dark_subt_take_median(raw_science_frame_file_names=ll_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for lower right
         lr_raw_frame_file_names = glob.glob(stem + '')
-        lr = dark_subt_take_median(raw_science_frame_file_names=lr_raw_frame_file_names, bias_array=bias_simple)
+        lr = dark_subt_take_median(raw_science_frame_file_names=lr_raw_frame_file_names, dark_array=dark_simple)
 
         # same, for center
         cen_raw_frame_file_names = glob.glob(stem + '')
 
-        cen = dark_subt_take_median(raw_science_frame_file_names=cen_raw_frame_file_names, bias_array=bias_simple)
+        cen = dark_subt_take_median(raw_science_frame_file_names=cen_raw_frame_file_names, dark_array=dark_simple)
 
         # centroid the PSFs
         x_ul, y_ul = centroid_sources(data=ul, xpos=[], ypos=[], box_size=21, centroid_func=centroid_com)

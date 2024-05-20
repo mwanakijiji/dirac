@@ -8,6 +8,8 @@ More rigorous methodology:
 https://www.mirametrics.com/tech_note_ccdgain.php
 (implement later)
 
+also Howell, p. 71ff
+
 Quick and easy methodology from
 https://www.photometrics.com/learn/imaging-topics/gain#:~:text=Calculate%20a%20bias%2Dcorrected%20image,%3A%20gain%20%3D%20mean%20%2Fvariance.
 

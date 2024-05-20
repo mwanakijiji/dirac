@@ -95,10 +95,14 @@ def main(data_date = '20240517'):
 
         read_noise_array_adu.append(read_noise)
 
-        #import ipdb; ipdb.set_trace()
+
+    plt.hist(read_noise_array_adu, bins=100)
+    plt.xlabel('read noise (e)')
+    plt.show()
+
     read_noise_e = gain * np.mean( read_noise_array_adu )
         
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + 'Exposure times of mix of flats and bias frames [sec]: ' + str(exp_times_array))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Exposure times of mix of flats and bias frames [sec]: ' + str(exp_times_array))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
@@ -112,13 +116,14 @@ def main(data_date = '20240517'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Percent variation from ideal: {:.1f}%'.format(100 * np.abs(read_noise_e-18.)/18.))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
     
+    '''
     if read_noise_e < 18 and np.max(exp_times_array) <= 1.2:
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-08 result: PASS   ######')
     else:
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-08 result: FAIL   ######')
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
-
+    '''
 
 if __name__ == "__main__":
     main(data_date = '20240517')

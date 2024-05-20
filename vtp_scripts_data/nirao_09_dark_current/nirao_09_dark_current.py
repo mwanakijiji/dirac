@@ -6,7 +6,7 @@ from astropy.io import fits
 import logging
 import datetime
 
-log_file_name = 'log_nirao_09_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
+log_file_name = 'log_nirao_09_dark_current_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
 logging.basicConfig(filename=log_file_name, 
                     level=logging.INFO, format='%(message)s')
 console = logging.StreamHandler()
@@ -31,7 +31,8 @@ logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark:
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bad pixel mask: ' + badpix_file_name)
 
-gain = 1 # [e/ADU]
+gain = 1.78 # [e/ADU] (email, Annino Vaccarella, 2024 05 17)
+logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Used gain value [e/ADU]: ' + str(gain))
 exposure_time = 300 # [sec]
 
 # bad pixel frame (0: good, 1: bad)
