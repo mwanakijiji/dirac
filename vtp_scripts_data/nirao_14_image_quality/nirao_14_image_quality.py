@@ -23,8 +23,8 @@ def deconvolve(star, psf):
 
 
 def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 4):
-    # generate model PSF of the telescope beam simulator
-    # model based on FWHM = 6 pix * (5.2 um / pix) = 31.2 um
+    # generate model PSF (Gaussian approximation) of the telescope beam simulator
+    # based on FWHM = 6 pix * (5.2 um / pix) = 31.2 um
     # and DIRAC pitch of 18 um / pix --> FWHM is 31.2 um * (pix / 18 um) = 1.733 pix on DIRAC detector
 
     # PARAMETERS:
@@ -271,9 +271,9 @@ def main(data_date = '20240517'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
     if sigma_x < 0.14 and sigma_y < 0.14:
-        logger.info('######   NIRAO-02 Vibrations result: PASS   ######')
+        logger.info('######   NIRAO-14 Image quality result: PASS   ######')
     else:
-        logger.info('######   NIRAO-02 Vibrations result: FAIL   ######')
+        logger.info('######   NIRAO-14 Image quality result: FAIL   ######')
 
     logger.info('--------------------------------------------------')
 
