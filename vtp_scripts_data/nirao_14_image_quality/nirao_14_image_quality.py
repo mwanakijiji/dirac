@@ -45,7 +45,7 @@ def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 4):
     # upsampling: upsampling we intend to apply
 
     print('NEED TO CORREC THE PARAMS ON THIS MODEL PSF')
-    #import ipdb; ipdb.set_trace()
+    ## import ipdb; ipdb.set_trace()
 
     size = int(raw_cutout_size * upsampling)
     tbs_psf_model = np.zeros((size, size))
@@ -236,6 +236,22 @@ def fit_gaussian(frame, center_guess):
     return fitted_array, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix
 
 
+def strehl_based_on_peak_intensities(frame, center_guess):
+    # fits a Gaussian, but without constraining it with the central pixels
+
+    #import ipdb; ipdb.set_trace()
+
+    y, x = np.indices(frame.shape)
+    xy_mesh = (x, y)
+    p0 = [np.max(frame), center_guess[0], center_guess[1], 1, 1, 0]
+    # find centroid
+    popt, pcov = curve_fit(gaussian_2d, xy_mesh, frame.ravel(), p0=p0)
+
+    strehl_simple = np.max(frame)/popt[0]
+    
+    return strehl_simple
+
+
 def dark_subt(raw_science_frame_file_names, dark_array):
     # dark subtracts
 
@@ -327,7 +343,8 @@ def main(data_date = '20240710'):
     psf_tbs, tbs_sigma_x_pix_tbs, tbs_sigma_y_pix_tbs, tbs_fwhm_x_pix_tbs, tbs_fwhm_y_pix_tbs = get_model_tbs_psf_based_on_empirical(raw_cutout_size = raw_cutout_size, upsampling = upsampling)
     
     # TBS 5.2 um/pix; camera magnification of 2x
-    fwhm_tbs_um = 0.5 * (tbs_fwhm_x_pix_tbs + tbs_fwhm_y_pix_tbs) * 5.2 * 2 # average FWHM of TBS in DIRAC pixels
+    #fwhm_tbs_um = 0.5 * (tbs_fwhm_x_pix_tbs + tbs_fwhm_y_pix_tbs) * 5.2 * 2 # average FWHM of TBS in DIRAC pixels
+    fwhm_tbs_um = (np.min([tbs_fwhm_x_pix_tbs,tbs_fwhm_y_pix_tbs])) * 5.2 * 2 # average FWHM of TBS in DIRAC pixels
     #import ipdb; ipdb.set_trace()
 
 
@@ -363,7 +380,7 @@ def main(data_date = '20240710'):
         frame_this = sci_this - dark_median
         #import ipdb; ipdb.set_trace()
 
-        cookie_edge_size = 20
+        cookie_edge_size = raw_cutout_size
         x_pos_pix, y_pos_pix = centroid_sources(data=frame_this, xpos=coord_guess[i][0], ypos=coord_guess[i][1], box_size=21, centroid_func=centroid_com)
         cookie_cut_out_sci = frame_this[int(y_pos_pix[0]-0.5*cookie_edge_size):int(y_pos_pix[0]+0.5*cookie_edge_size), int(x_pos_pix[0]-0.5*cookie_edge_size):int(x_pos_pix[0]+0.5*cookie_edge_size)]
         #import ipdb; ipdb.set_trace()
@@ -374,7 +391,80 @@ def main(data_date = '20240710'):
         cookie_cut_out_best_fit = fit_result[int(y_pos_pix[0]-0.5*cookie_edge_size):int(y_pos_pix[0]+0.5*cookie_edge_size), int(x_pos_pix[0]-0.5*cookie_edge_size):int(x_pos_pix[0]+0.5*cookie_edge_size)]
         #import ipdb; ipdb.set_trace()
         resids = cookie_cut_out_best_fit - cookie_cut_out_sci
+
+        # try fit with Gaussian
+        test_strehl = strehl_based_on_peak_intensities(frame_this, coord_guess[i])
+        print('test_strehl',test_strehl)
+
+        ################
+        # BEGIN METHOD OF TAKING MTF
+
+    
+
+        # END METHOD OF TAKING MTF
+        ################
+
+
         #import ipdb; ipdb.set_trace()
+
+        # consider spot on detector to be a PSF_overall that is a convolution of PSF_TBS and PSF_DIRAC
+        # Take the 2D Fourier transform of overall PSF to get the OTF
+        otf_overall_empirical = np.fft.fftshift(np.fft.fft2(cookie_cut_out_sci))
+        # FFT of TBS PSF
+        otf_tbs = np.fft.fftshift(np.fft.fft2(psf_tbs))
+        otf_dirac_empirical = otf_overall_empirical / otf_tbs
+        mtf_dirac_empirical = np.abs(np.fft.fftshift(otf_dirac_empirical))
+        mtf_dirac_empirical_zero_freq = mtf_dirac_empirical[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_empirical.shape[1] // 2]
+        otf_overall_bestfit = np.fft.fftshift(np.fft.fft2(cookie_cut_out_best_fit))
+        otf_dirac_ideal = otf_overall_bestfit / otf_tbs
+        mtf_dirac_ideal = np.abs(np.fft.fftshift(otf_dirac_ideal))
+        mtf_dirac_ideal_zero_freq = mtf_dirac_ideal[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_ideal.shape[1] // 2]
+
+        # PADDING
+        # Padding
+        # import ipdb; ipdb.set_trace()
+        pad_factor = 4
+        padded_size = cookie_cut_out_sci.shape[0] * pad_factor
+        pad_width = (padded_size - cookie_cut_out_sci.shape[0]) // 2
+        padded_cookie_cut_out_sci = np.pad(cookie_cut_out_sci, pad_width=pad_width, mode='median')
+        padded_psf_tbs = np.pad(psf_tbs, pad_width=pad_width, mode='median')
+        padded_cookie_cut_out_best_fit = np.pad(cookie_cut_out_best_fit, pad_width=pad_width, mode='median')
+        # import ipdb; ipdb.set_trace()
+
+        # Perform FFT and calculations on padded arrays
+        otf_overall_empirical = np.fft.fftshift(np.fft.fft2(padded_cookie_cut_out_sci))
+        otf_tbs = np.fft.fftshift(np.fft.fft2(padded_psf_tbs))
+
+        otf_dirac_empirical = otf_overall_empirical / otf_tbs
+        # import ipdb; ipdb.set_trace()
+
+        #otf_dirac_empirical = otf_dirac_empirical[20:-20, 20:-20]
+
+
+        mtf_dirac_empirical = np.abs(otf_dirac_empirical)
+
+        mtf_dirac_empirical_zero_freq = mtf_dirac_empirical[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_empirical.shape[1] // 2]
+        otf_overall_bestfit = np.fft.fftshift(np.fft.fft2(padded_cookie_cut_out_best_fit))
+        otf_dirac_ideal = otf_overall_bestfit / otf_tbs
+        mtf_dirac_ideal = np.abs(otf_dirac_ideal)
+        mtf_dirac_ideal_zero_freq = mtf_dirac_ideal[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_ideal.shape[1] // 2]
+        # import ipdb; ipdb.set_trace()
+
+        
+        test = (mtf_dirac_empirical/mtf_dirac_empirical_zero_freq) / (mtf_dirac_ideal/mtf_dirac_ideal_zero_freq)  
+        test_2 = np.sum((mtf_dirac_empirical/mtf_dirac_empirical_zero_freq)) / np.sum((mtf_dirac_ideal/mtf_dirac_ideal_zero_freq))  
+
+        test = (mtf_dirac_empirical/np.nanmax(mtf_dirac_empirical)) / (mtf_dirac_ideal/np.nanmax(mtf_dirac_ideal))
+
+        ## import ipdb; ipdb.set_trace
+
+        # Plot the Fourier transform
+        #plt.figure()
+        #plt.imshow(np.abs(fft_sci), cmap='gray')
+        #plt.title('Fourier Transform')
+        #plt.colorbar()
+        #plt.show()
+
         plt.clf()
         fig, axs = plt.subplots(1, 3, figsize=(12, 4))
 
@@ -429,6 +519,8 @@ def main(data_date = '20240710'):
         x_cen_array.append(x_cen[0])
         y_cen_array.append(y_cen[0])
 
+
+
         # METHOD 4: deconvolve to find PSF width
         '''
         #cutout = sci[int(y_cen-0.5*raw_cutout_size):int(y_cen+0.5*raw_cutout_size),
@@ -438,7 +530,7 @@ def main(data_date = '20240710'):
         #cutout_upsampled = np.array(cutout_upsampled)
         #star_deconv = deconvolve(cutout_upsampled, psf_tbs)
     '''
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         # etc...
     '''
@@ -454,10 +546,14 @@ def main(data_date = '20240710'):
     # approximate Strehls
     # the true, diffraction-limited PSF after removal of TBS and camera magnification
     df['fwhm_true_um'] = np.sqrt( df['fwhm_avg_um'] ** 2 - df['fwhm_tbs_um'] ** 2 )
-    import ipdb; ipdb.set_trace()
+    ## import ipdb; ipdb.set_trace()
     df['strehl_approx'] = np.power( 30.40 / df['fwhm_true_um'], 2)
 
+    # write FWHM info to file
     df.to_csv('junk_output.csv', index=False)
+
+
+
 
     # make a plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
@@ -529,6 +625,7 @@ def main(data_date = '20240710'):
     #    logger.info('######   NIRAO-14 Image quality result: FAIL   ######')
 
     logger.info('--------------------------------------------------')
+    # import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":
