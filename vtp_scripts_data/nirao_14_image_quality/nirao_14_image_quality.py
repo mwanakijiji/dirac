@@ -104,6 +104,35 @@ def get_model_tbs_psf_based_on_empirical(raw_cutout_size = 100, upsampling = 1):
     tbs_fwhm_y_pix_dirac = tbs_fwhm_y_um / 18.
     tbs_sigma_x_pix_dirac = tbs_sigma_x_um / 18.
     tbs_sigma_y_pix_dirac = tbs_sigma_y_um / 18.
+
+    import ipdb; ipdb.set_trace()
+
+    print('tbs_fwhm_x_um',tbs_fwhm_x_um)
+    print('tbs_fwhm_y_um',tbs_fwhm_y_um)
+
+    plt.clf()
+    # save a plot of the psf_tbs
+    fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+    # Plot psf_tbs_empirical
+    im1 = axs[0].imshow(psf_tbs_empirical, cmap='viridis')
+    axs[0].set_title('psf_tbs_empirical')
+    # Plot tbs_fit_result
+    im0 = axs[1].imshow(tbs_fit_result, cmap='viridis')
+    axs[1].set_title('psf_tbs_bestfit')
+    # Plot resids_psf_tbs
+    resids_psf_tbs = tbs_fit_result - psf_tbs_empirical
+    im2 = axs[2].imshow(resids_psf_tbs, cmap='viridis')
+    axs[2].set_title('resids_psf_tbs')
+    # Set the same color scale
+    vmin = min(im0.get_array().min(), im1.get_array().min(), im2.get_array().min())
+    vmax = max(im0.get_array().max(), im1.get_array().max(), im2.get_array().max())
+    im0.set_clim(vmin, vmax)
+    im1.set_clim(vmin, vmax)
+    im2.set_clim(vmin, vmax)
+    plt.tight_layout()
+    file_name_psf_tbs = 'psf_tbs.png'
+    plt.savefig(file_name_psf_tbs)
+
     #import ipdb; ipdb.set_trace()
 
     #-----
@@ -236,7 +265,7 @@ def fit_gaussian(frame, center_guess):
     return fitted_array, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix
 
 
-def strehl_based_on_peak_intensities(frame, center_guess):
+def strehl_based_on_peak_intensities(frame, center_guess, badpix):
     # fits a Gaussian, but without constraining it with the central pixels
 
     #import ipdb; ipdb.set_trace()
@@ -247,7 +276,13 @@ def strehl_based_on_peak_intensities(frame, center_guess):
     # find centroid
     popt, pcov = curve_fit(gaussian_2d, xy_mesh, frame.ravel(), p0=p0)
 
-    strehl_simple = np.max(frame)/popt[0]
+    # mask some bad pixels
+    frame[badpix == 1] = np.nan
+
+    # to avoid effect of bad pixels, only consider max within small region around spot
+    buffer_size = 10
+    cutout_around_psf = frame[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
+    strehl_simple = np.nanmax(cutout_around_psf)/popt[0]
     
     return strehl_simple
 
@@ -393,8 +428,9 @@ def main(data_date = '20240710'):
         resids = cookie_cut_out_best_fit - cookie_cut_out_sci
 
         # try fit with Gaussian
-        test_strehl = strehl_based_on_peak_intensities(frame_this, coord_guess[i])
-        print('test_strehl',test_strehl)
+        strehl_peak_intensity = strehl_based_on_peak_intensities(frame_this, coord_guess[i], badpix)
+        #print('test_strehl',test_strehl)
+
 
         ################
         # BEGIN METHOD OF TAKING MTF
@@ -492,8 +528,8 @@ def main(data_date = '20240710'):
         plt.close()
 
         # append the values i, fwhm_x_pix, and fwhm_y_pix in the pandas dataframe
-        df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0], 'fwhm_tbs_um': fwhm_tbs_um}, ignore_index=True)
-
+        df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0], 'fwhm_tbs_um': fwhm_tbs_um, 'strehl_via_peak_intensity': strehl_peak_intensity}, ignore_index=True)
+        #import ipdb; ipdb.set_trace()
         # mask bad pixels
         #frame_this[badpix == 1] = np.nan
 
@@ -547,7 +583,7 @@ def main(data_date = '20240710'):
     # the true, diffraction-limited PSF after removal of TBS and camera magnification
     df['fwhm_true_um'] = np.sqrt( df['fwhm_avg_um'] ** 2 - df['fwhm_tbs_um'] ** 2 )
     ## import ipdb; ipdb.set_trace()
-    df['strehl_approx'] = np.power( 30.40 / df['fwhm_true_um'], 2)
+    df['strehl_via_fwhm'] = np.power( 30.40 / df['fwhm_true_um'], 2)
 
     # write FWHM info to file
     df.to_csv('junk_output.csv', index=False)
@@ -596,15 +632,27 @@ def main(data_date = '20240710'):
     plt.savefig('fwhm_plot_um.png')
 
     plt.clf()
-    # make a scatter plot of df['x_pos_pix'] and df['y_pos_pix'], where each point is labeled on the plot with the string df['fwhm_true_um'], with a small offset from the marker
-    plt.scatter(df['x_pos_pix'], df['y_pos_pix'])
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    # Plot scatter plot of Strehls based on FWHM measurements
+    scatter1 = axs[0].scatter(df['x_pos_pix'], df['y_pos_pix'])
     for i, row in df.iterrows():
-        plt.text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_approx']:.2f}", ha='center', va='bottom', fontsize=8)
-    plt.title('Approx. Strehl, after removing effect of TBS\n(Perfect is 1.0)' )
-    plt.xlabel('x_pos_pix')
-    plt.ylabel('y_pos_pix')
-    #plt.show()
-    plt.savefig('fwhm_plot_strehl.png')
+        axs[0].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_fwhm']:.2f}", ha='center', va='bottom', fontsize=8)
+    import ipdb; ipdb.set_trace()
+    axs[0].set_title('Approx. Strehl, after removing effect of TBS\nS_avg={:.2f}'.format(np.mean(df['strehl_via_fwhm'])) + ', std={:.2f}'.format(np.std(df['strehl_via_fwhm'])) + ' (Perfect is S=1.0)')
+    axs[0].set_xlabel('x_pos_pix')
+    axs[0].set_ylabel('y_pos_pix')
+    # Plot scatter plot of lower bounds to Strehls based on Gaussian fits
+    scatter2 = axs[1].scatter(df['x_pos_pix'], df['y_pos_pix'])
+    for i, row in df.iterrows():
+        axs[1].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_peak_intensity']:.2f}", ha='center', va='bottom', fontsize=8)
+    axs[1].set_title('Lower bound to Strehl, based on Gaussian fits\nto PSF_total = PSF_TBS * PSF_DIRAC\nS_avg={:.2f}'.format(np.mean(df['strehl_via_peak_intensity'])) + ', std={:.2f}'.format(np.std(df['strehl_via_peak_intensity'])) + ' (Perfect is S=1.0)')
+    axs[1].set_xlabel('x_pos_pix')
+    axs[1].set_ylabel('y_pos_pix')
+
+    plt.tight_layout()
+    plt.savefig('strehl_plots.png')
+    plt.close()
 
     # criterion for success:
     # Plate scale 32.7 mas/pix
@@ -612,17 +660,19 @@ def main(data_date = '20240710'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Stdev of PSF coordinate is < 0.1 * lambda/D @ 900 nm (0.14 pix)')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: S > 0.9 at all positions')
     #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, x [pix, abs coords]: {:.3f}'.format(sigma_x))
     #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, y [pix, abs coords]: {:.3f}'.format(sigma_y))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
     #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
-    #if sigma_x < 0.14 and sigma_y < 0.14:
-    #    logger.info('######   NIRAO-14 Image quality result: PASS   ######')
-    #else:
-    #    logger.info('######   NIRAO-14 Image quality result: FAIL   ######')
+    if np.all(df['strehl_via_peak_intensity'] > 0.9):
+        logger.info('######   NIRAO-14 Image quality result: PASS   ######')
+    elif np.all(df['strehl_via_peak_intensity'] > 0.9-np.std(df['strehl_via_peak_intensity'])):
+        logger.info('######   NIRAO-14 Image quality result: CONDITIONAL PASS (lowest Strehl within error around 0.9)  ######')
+    else:
+        logger.info('######   NIRAO-14 Image quality result: FAIL   ######')
 
     logger.info('--------------------------------------------------')
     # import ipdb; ipdb.set_trace()
