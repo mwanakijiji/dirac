@@ -28,6 +28,20 @@ def gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta):
     g = amplitude * np.exp(-(a * ((x - xo)**2) + 2 * b * (x - xo) * (y - yo) + c * ((y - yo)**2)))
     return g.ravel()
 
+def gaussian_2d_fixed_sigmas(xy_mesh, amplitude, xo, yo, theta):
+    # FWHM=2√2ln2σ≈2.355σ, where FWHM_DIRAC_ideal = 30.40 um / (18 um/pix) = 1.69 pix
+    # Thus, σ = FWHM/2.355 = 0.717 IF it's only PSF_DIRAC
+    # For PSF_total, FWHM_tot_ideal = np.sqrt( FWHM_TBS**2 + FWHM_DIRAC_ideal**2 ) = np.sqrt( (45 um)**2 + (30.40 um)**2 ) = 54.31 um TODO: make FWHM_tbs_avg get passed to here
+    # then 
+    # FWHM_tot_ideal = 54.31 um / (18 um/pix) = 3.01
+    # σ_ideal = FWHM/2.355 = 3.01/2.355 = 1.278
+
+    sigma_x_pix = 1.278
+    sigma_y_pix = 1.278
+
+    return gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta)
+
+
 
 def deconvolve(star, psf):
     star_fft = fftpack.fftshift(fftpack.fftn(star))
@@ -35,7 +49,7 @@ def deconvolve(star, psf):
     return fftpack.fftshift(fftpack.ifftn(fftpack.ifftshift(star_fft/psf_fft)))
 
 
-def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 4):
+def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 1):
     # generate model PSF (Gaussian approximation) of the telescope beam simulator
     # based on FWHM = 6 pix * (5.2 um / pix) = 31.2 um
     # and DIRAC pitch of 18 um / pix --> FWHM is 31.2 um * (pix / 18 um) = 1.733 pix on DIRAC detector
@@ -105,7 +119,7 @@ def get_model_tbs_psf_based_on_empirical(raw_cutout_size = 100, upsampling = 1):
     tbs_sigma_x_pix_dirac = tbs_sigma_x_um / 18.
     tbs_sigma_y_pix_dirac = tbs_sigma_y_um / 18.
 
-    import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
 
     print('tbs_fwhm_x_um',tbs_fwhm_x_um)
     print('tbs_fwhm_y_um',tbs_fwhm_y_um)
@@ -266,7 +280,7 @@ def fit_gaussian(frame, center_guess):
 
 
 def strehl_based_on_peak_intensities(frame, center_guess, badpix):
-    # fits a Gaussian, but without constraining it with the central pixels
+    # fits a Gaussian
 
     #import ipdb; ipdb.set_trace()
 
@@ -277,12 +291,42 @@ def strehl_based_on_peak_intensities(frame, center_guess, badpix):
     popt, pcov = curve_fit(gaussian_2d, xy_mesh, frame.ravel(), p0=p0)
 
     # mask some bad pixels
-    frame[badpix == 1] = np.nan
+    #frame[badpix == 1] = np.nan
 
     # to avoid effect of bad pixels, only consider max within small region around spot
     buffer_size = 10
     cutout_around_psf = frame[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
     strehl_simple = np.nanmax(cutout_around_psf)/popt[0]
+
+    print('strehl_simple, variable Gaussian:',strehl_simple)
+    
+    return strehl_simple
+
+
+def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpix, sigma_x_fixed, sigma_y_fixed):
+    # fits a Gaussian constrained to have the FWHM based on ideal and TBS PSF
+
+    #import ipdb; ipdb.set_trace()
+
+    y, x = np.indices(frame.shape)
+    xy_mesh = (x, y)
+    p0 = [np.max(frame), center_guess[0], center_guess[1], 0]
+    # find centroid; this uses a wrapper with a lambda function to fix sigma_x and sigma_y
+    #import ipdb; ipdb.set_trace()
+    #lower_bounds = [-np.inf, -np.inf, -np.inf, sigma_x_fixed, sigma_y_fixed, -np.inf]
+    #upper_bounds = [np.inf, np.inf, np.inf, sigma_x_fixed, sigma_y_fixed, np.inf]
+    popt, pcov = curve_fit(gaussian_2d_fixed_sigmas, xy_mesh, frame.ravel(), p0=p0)
+
+    # mask some bad pixels
+    #frame[badpix == 1] = np.nan
+
+    # to avoid effect of bad pixels, only consider max within small region around spot
+    buffer_size = 10
+    cutout_around_psf = frame[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
+    strehl_simple = np.nanmax(cutout_around_psf)/popt[0]
+    #import ipdb; ipdb.set_trace()
+
+    print('strehl_simple, fixed-width Gaussian:',strehl_simple)
     
     return strehl_simple
 
@@ -429,7 +473,13 @@ def main(data_date = '20240710'):
 
         # try fit with Gaussian
         strehl_peak_intensity = strehl_based_on_peak_intensities(frame_this, coord_guess[i], badpix)
-        #print('test_strehl',test_strehl)
+
+        # try fit with fixed Gaussian
+        #import ipdb; ipdb.set_trace()
+        # FWHM=2√2ln2σ≈2.355σ, where FWHM_ideal = 30.40 um / (18 um/pix) = 1.69 pix
+        # Thus, σ = FWHM/2.355 = 0.717
+        strehl_peak_intensity_fixed_gaussian = strehl_based_on_peak_intensities_w_fixed_gaussian(frame_this, coord_guess[i], badpix, sigma_x_fixed=0.717, sigma_y_fixed=0.717)
+        #import ipdb; ipdb.set_trace()
 
 
         ################
