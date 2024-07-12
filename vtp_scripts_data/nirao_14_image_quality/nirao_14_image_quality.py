@@ -17,16 +17,8 @@ from scipy.optimize import curve_fit
 from PIL import Image
 from skimage import color, data, restoration
 import matplotlib.colors as colors
-
-def convolve(star, psf):
-    star_fft = fftpack.fftshift(fftpack.fftn(star))
-    psf_fft = fftpack.fftshift(fftpack.fftn(psf))
-    return fftpack.fftshift(fftpack.ifftn(fftpack.ifftshift(star_fft*psf_fft)))
-
-def deconvolve(star, psf):
-    star_fft = fftpack.fftshift(fftpack.fftn(star))
-    psf_fft = fftpack.fftshift(fftpack.fftn(psf))
-    return fftpack.fftshift(fftpack.ifftn(fftpack.ifftshift(star_fft/psf_fft)))
+import warnings
+import os
 
 
 def gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta):
@@ -38,6 +30,7 @@ def gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta):
     c = (np.sin(theta)**2) / (2 * sigma_x_pix**2) + (np.cos(theta)**2) / (2 * sigma_y_pix**2)
     g = amplitude * np.exp(-(a * ((x - xo)**2) + 2 * b * (x - xo) * (y - yo) + c * ((y - yo)**2)))
     return g.ravel()
+
 
 def gaussian_2d_fixed_sigmas(xy_mesh, amplitude, xo, yo, theta):
     # FWHM=2√2ln2σ≈2.355σ, where FWHM_DIRAC_ideal = 30.40 um / (18 um/pix) = 1.69 pix
@@ -53,13 +46,6 @@ def gaussian_2d_fixed_sigmas(xy_mesh, amplitude, xo, yo, theta):
     return gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta)
 
 
-
-def deconvolve(star, psf):
-    star_fft = fftpack.fftshift(fftpack.fftn(star))
-    psf_fft = fftpack.fftshift(fftpack.fftn(psf))
-    return fftpack.fftshift(fftpack.ifftn(fftpack.ifftshift(star_fft/psf_fft)))
-
-
 def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 1):
     # generate model PSF (Gaussian approximation) of the telescope beam simulator
     # based on FWHM = 6 pix * (5.2 um / pix) = 31.2 um
@@ -68,9 +54,6 @@ def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 1):
     # PARAMETERS:
     # raw_cutout_size: edge lengths of cutout from DIRAC detector (before any upsampling)
     # upsampling: upsampling we intend to apply
-
-    print('NEED TO CORREC THE PARAMS ON THIS MODEL PSF')
-    ## import ipdb; ipdb.set_trace()
 
     size = int(raw_cutout_size * upsampling)
     tbs_psf_model = np.zeros((size, size))
@@ -87,24 +70,16 @@ def gen_model_tbs_psf(raw_cutout_size = 25, upsampling = 1):
     # 2D Gaussian
     z = (1/(2*np.pi*sigma_x*sigma_y) * np.exp(-(x**2/(2*sigma_x**2) + y**2/(2*sigma_y**2))))
 
-    #plt.contourf(x, y, z, cmap='Blues')
-    #plt.colorbar()
-
-    #plt.imshow(z)
-
-    #plt.show()
-
     return z
 
 
 def get_model_tbs_psf_based_on_empirical(raw_cutout_size = 100, upsampling = 1):
-    # generate model of TBS, based on a Gaussian fit to what was measured
+    # generate model of telescope beam simulator (TBS), based on a Gaussian fit to what was measured
 
     size = raw_cutout_size * upsampling
-    #tbs_psf_model = np.zeros((size, size))
 
-    # PSF of the TBS, as measured Apr. 12, 2024 (email from RZ)
-    # Note the pixels are the TBS pixels (not DIRAC!)
+    # PSF of the TBS, as measured (email from RZ, 2024 04 12)
+    # Note the pixels are the TBS pixels (not DIRAC)
     psf_tbs_empirical = np.array([[4, 4,  4,  4,  4],
                     [5, 8,  16, 19, 16],
                     [16,43, 79, 80, 52],
@@ -116,24 +91,20 @@ def get_model_tbs_psf_based_on_empirical(raw_cutout_size = 100, upsampling = 1):
                     [12, 25, 47, 48, 31],
                     [5, 5, 8, 7, 6],
                     [3, 3, 4, 3, 3]]) 
+    
     # fit Gaussian model to TBS PSF
     tbs_fit_result, tbs_fwhm_x_pix_tbs, tbs_fwhm_y_pix_tbs, tbs_sigma_x_pix_tbs, tbs_sigma_y_pix_tbs = fit_gaussian(psf_tbs_empirical, np.array([2.5, 5]))
-    #import ipdb; ipdb.set_trace()
-    # convert to um with factors of 5.2 um/pix (TBS pixel pitch) and 2 (DIRAC camera magnification) from email from RZ, 2024 04 12
+
+    # convert to um with factors of 5.2 um/pix (TBS pixel pitch) and 2 (DIRAC camera magnification) (email from RZ, 2024 04 12)
     tbs_fwhm_x_um = tbs_fwhm_x_pix_tbs * 5.2 * 2
     tbs_fwhm_y_um = tbs_fwhm_y_pix_tbs * 5.2 * 2
     tbs_sigma_x_um = tbs_sigma_x_pix_tbs * 5.2 * 2
     tbs_sigma_y_um = tbs_sigma_y_pix_tbs * 5.2 * 2
-    # convert to DIRAC pixels
-    tbs_fwhm_x_pix_dirac = tbs_fwhm_x_um / 18. # DIRAC pixel pitch: 18 um/pix
+    # convert to DIRAC pixels: DIRAC pixel pitch is 18 um/pix
+    tbs_fwhm_x_pix_dirac = tbs_fwhm_x_um / 18.
     tbs_fwhm_y_pix_dirac = tbs_fwhm_y_um / 18.
     tbs_sigma_x_pix_dirac = tbs_sigma_x_um / 18.
     tbs_sigma_y_pix_dirac = tbs_sigma_y_um / 18.
-
-    #import ipdb; ipdb.set_trace()
-
-    print('tbs_fwhm_x_um',tbs_fwhm_x_um)
-    print('tbs_fwhm_y_um',tbs_fwhm_y_um)
 
     plt.clf()
     # save a plot of the psf_tbs
@@ -155,73 +126,28 @@ def get_model_tbs_psf_based_on_empirical(raw_cutout_size = 100, upsampling = 1):
     im1.set_clim(vmin, vmax)
     im2.set_clim(vmin, vmax)
     plt.tight_layout()
-    file_name_psf_tbs = 'psf_tbs.png'
+    file_name_psf_tbs = 'psf_tbs_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
     plt.savefig(file_name_psf_tbs)
-
-    #import ipdb; ipdb.set_trace()
-
-    #-----
-    #tbs_psf_model = np.zeros((size, size))
-
-    # FWHM = 2.35 * sigma (Gaussian)
-    #sigma_x = 1.733 * upsampling / 2.35 # (DIRAC pix) * upsampling / 2.35
-    #sigma_y = 1.733 * upsampling / 2.35
+    print(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Saved plot of TBS PSF: '+str(file_name_psf_tbs))
 
     # upsampling
     tbs_sigma_x_pix_dirac *= tbs_sigma_x_pix_dirac * upsampling
     tbs_sigma_y_pix_dirac *= tbs_sigma_y_pix_dirac * upsampling
     tbs_fwhm_x_pix_dirac *= tbs_fwhm_x_pix_dirac * upsampling
     tbs_fwhm_y_pix_dirac *= tbs_fwhm_y_pix_dirac * upsampling
-    #import ipdb; ipdb.set_trace()
 
     # make grid
     x = np.linspace(-int(0.5*size), int(0.5*size), size)
     y = np.linspace(-int(0.5*size), int(0.5*size), size)
-
     x, y = np.meshgrid(x, y)
+
     # 2D Gaussian
     z = (1/(2 * np.pi * tbs_sigma_x_pix_dirac * tbs_sigma_y_pix_dirac) * np.exp(-(x**2/(2*tbs_sigma_x_pix_dirac**2) + y**2/(2*tbs_sigma_y_pix_dirac**2))))
 
     if upsampling != 1:
-        print('WARNING: UPSAMPLING != 1; SIGMA AND FWHM VALS NEED TO BE RESCALED')
+        print('UPSAMPLING != 1; SIGMA AND FWHM VALS NEED TO BE RESCALED')
 
-    #import ipdb; ipdb.set_trace()
     return z, tbs_sigma_x_pix_tbs, tbs_sigma_y_pix_tbs, tbs_fwhm_x_pix_tbs, tbs_fwhm_y_pix_tbs
-
-
-def testing_gaussian(raw_cutout_size = 25, upsampling = 1, sigma_expansion = 2):
-    # generate model PSF of the telescope beam simulator
-    # model based on FWHM = 6 pix * (5.2 um / pix) = 31.2 um
-    # and DIRAC pitch of 18 um / pix --> FWHM is 31.2 um * (pix / 18 um) = 1.733 pix on DIRAC detector
-
-    # PARAMETERS:
-    # raw_cutout_size: edge lengths of cutout from DIRAC detector (before any upsampling)
-    # upsampling: upsampling we intend to apply
-    # sigma_expansion: factor by which to make the Gaussian larger than the TBS PSF
-
-    size = raw_cutout_size * upsampling
-    tbs_psf_model = np.zeros((size, size))
-
-    # FWHM = 2.35 * sigma (Gaussian)
-    sigma_x = sigma_expansion * 1.733 * upsampling / 2.35 # (DIRAC pix) * upsampling / 2.35
-    sigma_y = sigma_expansion * 1.733 * upsampling / 2.35
-
-    # make grid
-    x = np.linspace(-int(0.5*size), int(0.5*size), size)
-    y = np.linspace(-int(0.5*size), int(0.5*size), size)
-
-    x, y = np.meshgrid(x, y)
-    # 2D Gaussian
-    z = (1/(2*np.pi*sigma_x*sigma_y) * np.exp(-(x**2/(2*sigma_x**2) + y**2/(2*sigma_y**2))))
-
-    #plt.contourf(x, y, z, cmap='Blues')
-    #plt.colorbar()
-
-    #plt.imshow(z)
-
-    #plt.show()
-
-    return z
 
 
 # confidence ellipse from https://matplotlib.org/stable/gallery/statistics/confidence_ellipse.html
@@ -278,6 +204,21 @@ def confidence_ellipse(x, y, ax, n_std=1.0, facecolor='none', **kwargs):
 
 
 def fit_gaussian(frame, center_guess):
+    """
+    Fit a 2D Gaussian function to a given frame.
+
+    Parameters:
+    frame (ndarray): 2D array representing the frame.
+    center_guess (list): List containing the initial guess for the center coordinates.
+
+    Returns:
+    fitted_array (ndarray): 2D array representing the fitted Gaussian function.
+    fwhm_x_pix (float): Full Width at Half Maximum (FWHM) in the x-direction.
+    fwhm_y_pix (float): Full Width at Half Maximum (FWHM) in the y-direction.
+    sigma_x_pix (float): Standard deviation in the x-direction.
+    sigma_y_pix (float): Standard deviation in the y-direction.
+    """
+
     y, x = np.indices(frame.shape)
     xy_mesh = (x, y)
     p0 = [np.max(frame), center_guess[0], center_guess[1], 1, 1, 0]
@@ -287,11 +228,22 @@ def fit_gaussian(frame, center_guess):
     fwhm_y_pix = 2 * np.sqrt(2 * np.log(2)) * np.abs(popt[4])
     sigma_x_pix = popt[3]
     sigma_y_pix = popt[4]
+    
     return fitted_array, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix
 
 
-def strehl_based_on_peak_intensities(frame, center_guess, badpix):
-    # fits a Gaussian
+def strehl_based_on_peak_intensities_w_variable_gaussian(frame, center_guess, badpix):
+    """
+    Calculate the Strehl ratio based on peak intensities using a variable Gaussian fit.
+
+    Parameters:
+    frame (ndarray): 2D array representing the frame.
+    center_guess (list): List containing the initial guess for the center coordinates.
+    badpix (float): Value representing bad pixels.
+
+    Returns:
+    strehl_simple (float): Strehl ratio based on peak intensities.
+    """
 
     y, x = np.indices(frame.shape)
     xy_mesh = (x, y)
@@ -303,16 +255,24 @@ def strehl_based_on_peak_intensities(frame, center_guess, badpix):
     buffer_size = 10
     cutout_around_psf = frame[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
     strehl_simple = np.nanmax(cutout_around_psf)/popt[0]
-
-    print('strehl_simple, variable Gaussian:',strehl_simple)
     
     return strehl_simple
 
 
 def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpix, sigma_x_fixed, sigma_y_fixed):
-    # fits a Gaussian constrained to have the FWHM based on ideal and TBS PSF
+    """
+    Calculate the Strehl ratio based on peak intensities using a fixed-width Gaussian fit.
 
-    #import ipdb; ipdb.set_trace()
+    Parameters:
+    frame (ndarray): 2D array representing the frame.
+    center_guess (list): List containing the initial guess for the center coordinates.
+    badpix (float): Value representing bad pixels.
+    sigma_x_fixed (float): Fixed standard deviation in the x-direction.
+    sigma_y_fixed (float): Fixed standard deviation in the y-direction.
+
+    Returns:
+    strehl_simple (float): Strehl ratio based on peak intensities.
+    """
 
     y, x = np.indices(frame.shape)
     xy_mesh = (x, y)
@@ -328,30 +288,18 @@ def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpi
     cutout_around_psf = frame[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
     strehl_simple = np.nanmax(cutout_around_psf)/popt[0]
 
+    # FYI quantities
     cutout_around_model_fit_fixed_sigmas = model_fit_fixed_sigmas[int(popt[2])-buffer_size:int(popt[2])+buffer_size,int(popt[1])-buffer_size:int(popt[1])+buffer_size]
     illum_of_empirical = np.nansum(cutout_around_psf) # FYI
     illum_of_model_fit_fixed_sigmas = np.nansum(cutout_around_model_fit_fixed_sigmas) # FYI
-
-    print('strehl_simple, fixed-width Gaussian:',strehl_simple)
     
     return strehl_simple
 
 
-def dark_subt(raw_science_frame_file_names, dark_array):
-    # dark subtracts
-
-    hdul = fits.open(raw_science_frame_file_names)
-    sci = hdul[0].data
-
-    sci = sci - dark_array
-
-    return median_frame
-
-
 def main(data_date = '20240710'):
-    # 20240517 is best data
+    # 20240710 is Y-band
 
-    # upsampling for the deconvolution
+    # upsampling (keep 1 for now)
     upsampling = 1
     # sizes of square cutouts from detector, in DIRAC pixels
     raw_cutout_size = 100
@@ -376,18 +324,7 @@ def main(data_date = '20240710'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Strehl ratio measured for all PSF locations > 90%')
     logger.info('-----------------------------------------------------')
 
-    #dark_raw_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/20sec.fits'
-    #bias_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/100ms.fits'
     badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
-
-    # positions of micrometer [mm]
-
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bad pixel mask: ' + badpix_file_name)
-
-    #simple_bias_file_names = [stem + 'DIRAC_20240515_135139.fits', stem + 'DIRAC_20240515_135152.fits']
-    #cds_bias_file_names = [stem + 'DIRAC_20240515_135206.fits', stem + 'DIRAC_20240515_135223.fits']
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -401,9 +338,6 @@ def main(data_date = '20240710'):
         dark_this = hdul[0].data
         dark_array.append(dark_this)
     dark_median = np.median(dark_array, axis=0)
-
-    # mask bad pixels
-    #dark_median[badpix == 1] = np.nan
 
     # total number of pixels 
     N_pix_tot = dark_median.size
@@ -421,6 +355,7 @@ def main(data_date = '20240710'):
     psf_tbs, tbs_sigma_x_pix_tbs, tbs_sigma_y_pix_tbs, tbs_fwhm_x_pix_tbs, tbs_fwhm_y_pix_tbs = get_model_tbs_psf_based_on_empirical(raw_cutout_size = raw_cutout_size, upsampling = upsampling)
     # TBS pixel pitch is 5.2 um/pix; DIRAC camera magnification is 2x
     fwhm_tbs_um = 0.5 * (tbs_fwhm_x_pix_tbs + tbs_fwhm_y_pix_tbs) * 5.2 * 2 # average FWHM of TBS in DIRAC pixels
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': TBS FWHM, xy avg. (um): {:.2f}'.format(fwhm_tbs_um))
     #fwhm_tbs_um = (np.min([tbs_fwhm_x_pix_tbs,tbs_fwhm_y_pix_tbs])) * 5.2 * 2 # option: min FWHM of TBS in DIRAC pixels
 
     # Read the text file with coord guesses into a Pandas DataFrame
@@ -436,193 +371,80 @@ def main(data_date = '20240710'):
         y_guess = df_coord_guesses['y_guess'].iloc[i]
         coord_guess.append(np.array([x_guess, y_guess]))
 
-    # read/process set of frames
-    df = pd.DataFrame(columns=['spot number', 'fwhm_x_pix', 'fwhm_y_pix', 'x_pos_pix', 'y_pos_pix', 'fwhm_tbs_um']) # initialize
+    # initialize
+    df = pd.DataFrame(columns=['spot number', 'fwhm_x_pix', 'fwhm_y_pix', 'x_pos_pix', 'y_pos_pix', 'fwhm_tbs_um'])
 
     # loop over all frames
     for i in range(0,len(df_coord_guesses['filename'].values)):
 
+        # suppress Python FutureWarnings
+        warnings.simplefilter(action='ignore', category=Warning)
+
         file_name_this = df_coord_guesses['filename'].values[i]
 
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Reading in frame ' + file_name_this)
+
+        # read in science frame
         hdul = fits.open(file_name_this)
-        sci_this = hdul[0].data # science frame
+        sci_this = hdul[0].data
 
         # dark subtract
         frame_this = sci_this - dark_median
 
-        cookie_edge_size = raw_cutout_size
+        # find spot center
         x_pos_pix, y_pos_pix = centroid_sources(data=frame_this, xpos=coord_guess[i][0], ypos=coord_guess[i][1], box_size=21, centroid_func=centroid_com)
-        cookie_cut_out_sci = frame_this[int(y_pos_pix[0]-0.5*cookie_edge_size):int(y_pos_pix[0]+0.5*cookie_edge_size), int(x_pos_pix[0]-0.5*cookie_edge_size):int(x_pos_pix[0]+0.5*cookie_edge_size)]
-        #import ipdb; ipdb.set_trace()
 
-        # best fit Gaussian to empirical; all parameters are free
+        # make cutout around spot
+        cookie_edge_size = raw_cutout_size
+        cookie_cut_out_sci = frame_this[int(y_pos_pix[0]-0.5*cookie_edge_size):int(y_pos_pix[0]+0.5*cookie_edge_size), int(x_pos_pix[0]-0.5*cookie_edge_size):int(x_pos_pix[0]+0.5*cookie_edge_size)]
+
+        # make best fit Gaussian to empirical; all fit parameters are free
         fit_result, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix = fit_gaussian(frame_this, coord_guess[i])
-        # take a small cutout around the model
+
+        # make cutout around the model (for plot)
         cookie_cut_out_best_fit = fit_result[int(y_pos_pix[0]-0.5*cookie_edge_size):int(y_pos_pix[0]+0.5*cookie_edge_size), int(x_pos_pix[0]-0.5*cookie_edge_size):int(x_pos_pix[0]+0.5*cookie_edge_size)]
-        # residuals with empirical
+
+        # residuals with empirical (for plot)
         resids = cookie_cut_out_best_fit - cookie_cut_out_sci
 
-        # Strehl ratio based on comparison of Gaussian fit (all free parameters) with empirical
-        strehl_peak_intensity = strehl_based_on_peak_intensities(frame_this, coord_guess[i], badpix)
+        # Strehl ratio based on comparison of Gaussian fit (all fit parameters are free) with empirical
+        strehl_via_peak_intensity_variable_gaussian = strehl_based_on_peak_intensities_w_variable_gaussian(frame_this, coord_guess[i], badpix)
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Found Strehl using variable Gaussian: {:.2f}'.format(strehl_via_peak_intensity_variable_gaussian))
 
         # Strehl ratio based on comparison of Gaussian fit (parameters are free except for fixed, ideal FWHM in x and y) with empirical
         strehl_peak_intensity_fixed_gaussian = strehl_based_on_peak_intensities_w_fixed_gaussian(frame_this, coord_guess[i], badpix, sigma_x_fixed=0.717, sigma_y_fixed=0.717)
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Found Strehl using fixed-width Gaussian: {:.2f}'.format(strehl_peak_intensity_fixed_gaussian))
 
-
-        ################
-        # BEGIN METHOD OF TAKING MTF
-
-    
-
-
-
-        import ipdb; ipdb.set_trace()
-
-        # consider spot on detector to be a PSF_overall that is a convolution of PSF_TBS and PSF_DIRAC
-        # Take the 2D Fourier transform of overall PSF to get the OTF
-
-        psf_dirac_deconv = deconvolve(cookie_cut_out_best_fit, psf_tbs) 
-        plt.imshow(np.real(psf_dirac_deconv))
-        plt.show()
-
-        plt.clf()
-        
-
-        # ...
-
-        plt.imshow(cookie_cut_out_best_fit, cmap='gray', norm=colors.LogNorm())
-        import ipdb; ipdb.set_trace()
-
-
-        otf_overall_empirical = np.fft.fftshift(np.fft.fft2(cookie_cut_out_sci))
-        # FFT of TBS PSF
-        otf_tbs = np.fft.fftshift(np.fft.fft2(psf_tbs))
-        otf_dirac_empirical = otf_overall_empirical / otf_tbs
-        mtf_dirac_empirical = np.abs(np.fft.fftshift(otf_dirac_empirical))
-        mtf_dirac_empirical_zero_freq = mtf_dirac_empirical[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_empirical.shape[1] // 2]
-        otf_overall_bestfit = np.fft.fftshift(np.fft.fft2(cookie_cut_out_best_fit))
-        otf_dirac_ideal = otf_overall_bestfit / otf_tbs
-        mtf_dirac_ideal = np.abs(np.fft.fftshift(otf_dirac_ideal))
-        mtf_dirac_ideal_zero_freq = mtf_dirac_ideal[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_ideal.shape[1] // 2]
-
-        # PADDING
-        # Padding
-        # import ipdb; ipdb.set_trace()
-        pad_factor = 4
-        padded_size = cookie_cut_out_sci.shape[0] * pad_factor
-        pad_width = (padded_size - cookie_cut_out_sci.shape[0]) // 2
-        padded_cookie_cut_out_sci = np.pad(cookie_cut_out_sci, pad_width=pad_width, mode='median')
-        padded_psf_tbs = np.pad(psf_tbs, pad_width=pad_width, mode='median')
-        padded_cookie_cut_out_best_fit = np.pad(cookie_cut_out_best_fit, pad_width=pad_width, mode='median')
-        # import ipdb; ipdb.set_trace()
-
-        # Perform FFT and calculations on padded arrays
-        otf_overall_empirical = np.fft.fftshift(np.fft.fft2(padded_cookie_cut_out_sci))
-        otf_tbs = np.fft.fftshift(np.fft.fft2(padded_psf_tbs))
-
-        otf_dirac_empirical = otf_overall_empirical / otf_tbs
-        # import ipdb; ipdb.set_trace()
-
-        #otf_dirac_empirical = otf_dirac_empirical[20:-20, 20:-20]
-
-
-        mtf_dirac_empirical = np.abs(otf_dirac_empirical)
-
-        mtf_dirac_empirical_zero_freq = mtf_dirac_empirical[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_empirical.shape[1] // 2]
-        otf_overall_bestfit = np.fft.fftshift(np.fft.fft2(padded_cookie_cut_out_best_fit))
-        otf_dirac_ideal = otf_overall_bestfit / otf_tbs
-        mtf_dirac_ideal = np.abs(otf_dirac_ideal)
-        mtf_dirac_ideal_zero_freq = mtf_dirac_ideal[mtf_dirac_empirical.shape[0] // 2, mtf_dirac_ideal.shape[1] // 2]
-        # import ipdb; ipdb.set_trace()
-
-        
-        test = (mtf_dirac_empirical/mtf_dirac_empirical_zero_freq) / (mtf_dirac_ideal/mtf_dirac_ideal_zero_freq)  
-        test_2 = np.sum((mtf_dirac_empirical/mtf_dirac_empirical_zero_freq)) / np.sum((mtf_dirac_ideal/mtf_dirac_ideal_zero_freq))  
-
-        test = (mtf_dirac_empirical/np.nanmax(mtf_dirac_empirical)) / (mtf_dirac_ideal/np.nanmax(mtf_dirac_ideal))
-
-        # END METHOD OF TAKING MTF
-        ################
-
-
-        ## import ipdb; ipdb.set_trace
-
-        # Plot the Fourier transform
-        #plt.figure()
-        #plt.imshow(np.abs(fft_sci), cmap='gray')
-        #plt.title('Fourier Transform')
-        #plt.colorbar()
-        #plt.show()
-
+        # plot empirical spots, the best Gaussian fits, and the residuals
         plt.clf()
         fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-
-        # Plot cookie_cut_out_sci
+        # empirical spot
         im0 = axs[0].imshow(cookie_cut_out_sci, cmap='gray')
         axs[0].set_title('image')
-
-        # Plot cookie_cut_out_best_fit
+        # best-fit model
         im1 = axs[1].imshow(cookie_cut_out_best_fit, cmap='gray')
-        axs[1].set_title('best fit\nFWHM_x (pix): {:.2f}\nFWHM_y (pix): {:.2f}'.format(fwhm_x_pix, fwhm_y_pix))
-
-        # Plot resids
+        axs[1].set_title('best fit, '+ os.path.basename(file_name_this) +'\nFWHM_x (pix): {:.2f}\nFWHM_y (pix): {:.2f}'.format(fwhm_x_pix, fwhm_y_pix))
+        # residuals
         im2 = axs[2].imshow(resids, cmap='gray')
         axs[2].set_title('residuals')
-
-        # Set the same color scale for first two subplots
+        # set the same color scale for first two subplots
         vmin = min(im0.get_array().min(), im1.get_array().min(), im2.get_array().min())
         vmax = max(im0.get_array().max(), im1.get_array().max(), im2.get_array().max())
         im0.set_clim(vmin, vmax)
         im1.set_clim(vmin, vmax)
         #im2.set_clim(vmin, vmax) 
-
         plt.tight_layout()
-        plt.savefig(f'figure_{i:02d}.png')
+        file_name_psf_best_fit = 'psf_best_fit_' + os.path.basename(file_name_this).split('.')[0] + '_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
+        plt.savefig(file_name_psf_best_fit)
         plt.close()
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote PSF best-fit plot ' + file_name_psf_best_fit)
 
-        # append the values i, fwhm_x_pix, and fwhm_y_pix in the pandas dataframe
-        df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0], 'fwhm_tbs_um': fwhm_tbs_um, 'strehl_via_peak_intensity': strehl_peak_intensity}, ignore_index=True)
-        #import ipdb; ipdb.set_trace()
-        # mask bad pixels
-        #frame_this[badpix == 1] = np.nan
+        # append the values i, fwhm_x_pix, and fwhm_y_pix etc. in the pandas dataframe
+        df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0], 
+                        'fwhm_tbs_um': fwhm_tbs_um, 'strehl_via_peak_intensity_variable_gaussian': strehl_via_peak_intensity_variable_gaussian, 
+                        'strehl_via_peak_intensity_fixed_gaussian': strehl_peak_intensity_fixed_gaussian}, ignore_index=True)
 
-    '''
-    # dark-subtract each frame, centroid on the spot
-    x_cen_array = []
-    y_cen_array = []
-    for i in range(0,len(df_coord_guesses['filename'].values)):
-
-        file_name_this = df_coord_guesses['filename'].values[i]
-
-        hdul = fits.open(file_name_this)
-        sci_this = hdul[0].data
-        
-        # dark subtraction
-        sci = sci_this - dark_median
-
-        #plt.imshow(sci)
-        #plt.show()
-
-        # find centers
-        x_cen, y_cen = centroid_sources(data=sci, xpos=coord_guess[i][0], ypos=coord_guess[i][1], box_size=21, centroid_func=centroid_com)
-        x_cen_array.append(x_cen[0])
-        y_cen_array.append(y_cen[0])
-
-
-
-        # METHOD 4: deconvolve to find PSF width
-        '''
-        #cutout = sci[int(y_cen-0.5*raw_cutout_size):int(y_cen+0.5*raw_cutout_size),
-        #    int(x_cen-0.5*raw_cutout_size):int(x_cen+0.5*raw_cutout_size)] # cut out star
-        #cutout_image = Image.fromarray(cutout)
-        #cutout_upsampled = cutout_image.resize((cutout.shape[1]*upsampling, cutout.shape[0]*upsampling))
-        #cutout_upsampled = np.array(cutout_upsampled)
-        #star_deconv = deconvolve(cutout_upsampled, psf_tbs)
-    '''
-        # import ipdb; ipdb.set_trace()
-
-        # etc...
-    '''
 
     # add in FWHM values in microns 
     df['fwhm_x_um'] = 18. * df['fwhm_x_pix'] # 18 um per pixel in DIRAC
@@ -635,44 +457,16 @@ def main(data_date = '20240710'):
     # approximate Strehls
     # the true, diffraction-limited PSF after removal of TBS and camera magnification
     df['fwhm_true_um'] = np.sqrt( df['fwhm_avg_um'] ** 2 - df['fwhm_tbs_um'] ** 2 )
-    ## import ipdb; ipdb.set_trace()
     df['strehl_via_fwhm'] = np.power( 30.40 / df['fwhm_true_um'], 2)
 
     # write FWHM info to file
-    df.to_csv('junk_output.csv', index=False)
-
-
-
+    file_name_output_csv = 'nirao_14_output_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.csv'
+    df.to_csv(file_name_output_csv, index=False)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote FWHM information to '+file_name_output_csv)
 
     # make a plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-
-    # Plot scatter plot on the first subplot
-    scatter1 = ax1.scatter(df['x_pos_pix'], df['y_pos_pix'], c=df['fwhm_x_pix'])
-    ax1.set_xlim([0, 1024])
-    ax1.set_ylim([0, 1024])
-    ax1.set_aspect('equal', adjustable='box')
-    ax1.set_title('FWHM_x (pix)')
-    ax1.set_xlabel('x_pos_pix')
-    ax1.set_ylabel('y_pos_pix')
-
-    # Plot scatter plot on the second subplot
-    scatter2 = ax2.scatter(df['x_pos_pix'], df['y_pos_pix'], c=df['fwhm_y_pix'])
-    ax2.set_xlim([0, 1024])
-    ax2.set_ylim([0, 1024])
-    ax2.set_aspect('equal', adjustable='box')
-    ax2.set_title('FWHM_y (pix)')
-    ax2.set_xlabel('x_pos_pix')
-    ax2.set_ylabel('y_pos_pix')
-
-    # Add colorbars to each subplot
-    cbar1 = plt.colorbar(scatter1, ax=ax1, aspect=40)
-    cbar1.set_label('FWHM_x (pix)')
-    cbar2 = plt.colorbar(scatter2, ax=ax2, aspect=40)
-    cbar2.set_label('FWHM_y (pix)')
-
-    plt.tight_layout()
-    plt.show()
 
     plt.clf()
     # make a scatter plot of df['x_pos_pix'] and df['y_pos_pix'], where each point is labeled on the plot with the string df['fwhm_true_um'], with a small offset from the marker
@@ -682,53 +476,59 @@ def main(data_date = '20240710'):
     plt.title('True FWHM (um), after removing effect of TBS\n(Ideal is 30.40 um)' )
     plt.xlabel('x_pos_pix')
     plt.ylabel('y_pos_pix')
-    plt.savefig('fwhm_plot_um.png')
+    file_name_plot_fwhm_um = 'nirao_14_plot_true_fwhm_spots_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
+    plt.axis('equal')
+    plt.savefig(file_name_plot_fwhm_um)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot of FWHM of spots to '+file_name_plot_fwhm_um)
 
     plt.clf()
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
 
-    # Plot scatter plot of Strehls based on FWHM measurements
+    # Plot scatter plot of lower bounds to Strehls based on variable Gaussian fits
     scatter1 = axs[0].scatter(df['x_pos_pix'], df['y_pos_pix'])
     for i, row in df.iterrows():
-        axs[0].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_fwhm']:.2f}", ha='center', va='bottom', fontsize=8)
-    import ipdb; ipdb.set_trace()
-    axs[0].set_title('Approx. Strehl, after removing effect of TBS\nS_avg={:.2f}'.format(np.mean(df['strehl_via_fwhm'])) + ', std={:.2f}'.format(np.std(df['strehl_via_fwhm'])) + ' (Perfect is S=1.0)')
+        axs[0].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_peak_intensity_variable_gaussian']:.2f}", ha='center', va='bottom', fontsize=8)
+    axs[0].set_title('Lower bound to Strehl, based on variable Gaussian fits\nto PSF_total = PSF_TBS * PSF_DIRAC\nS_avg={:.2f}'.format(np.mean(df['strehl_via_peak_intensity_variable_gaussian'])) + ', std={:.2f}'.format(np.std(df['strehl_via_peak_intensity_variable_gaussian'])) + ' (Perfect is S=1.0)')
     axs[0].set_xlabel('x_pos_pix')
     axs[0].set_ylabel('y_pos_pix')
-    # Plot scatter plot of lower bounds to Strehls based on Gaussian fits
+
+    # Plot scatter plot of lower bounds to Strehls based on fixed-width Gaussian fits
     scatter2 = axs[1].scatter(df['x_pos_pix'], df['y_pos_pix'])
     for i, row in df.iterrows():
-        axs[1].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_peak_intensity']:.2f}", ha='center', va='bottom', fontsize=8)
-    axs[1].set_title('Lower bound to Strehl, based on Gaussian fits\nto PSF_total = PSF_TBS * PSF_DIRAC\nS_avg={:.2f}'.format(np.mean(df['strehl_via_peak_intensity'])) + ', std={:.2f}'.format(np.std(df['strehl_via_peak_intensity'])) + ' (Perfect is S=1.0)')
+        axs[1].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_peak_intensity_fixed_gaussian']:.2f}", ha='center', va='bottom', fontsize=8)
+    axs[1].set_title('Lower bound to Strehl, based on fixed-width Gaussian fits\nto PSF_total = PSF_TBS * PSF_DIRAC\nS_avg={:.2f}'.format(np.mean(df['strehl_via_peak_intensity_fixed_gaussian'])) + ', std={:.2f}'.format(np.std(df['strehl_via_peak_intensity_fixed_gaussian'])) + ' (Perfect is S=1.0)')
     axs[1].set_xlabel('x_pos_pix')
     axs[1].set_ylabel('y_pos_pix')
 
-    plt.tight_layout()
-    plt.savefig('strehl_plots.png')
-    plt.close()
+    # Plot scatter plot of Strehls based on FWHM measurements
+    scatter3 = axs[2].scatter(df['x_pos_pix'], df['y_pos_pix'])
+    for i, row in df.iterrows():
+        axs[2].text(row['x_pos_pix'], row['y_pos_pix'] + 10, f"{row['strehl_via_fwhm']:.2f}", ha='center', va='bottom', fontsize=8)
+    axs[2].set_title('Approx. Strehl, after removing effect of TBS\nS_avg={:.2f}'.format(np.mean(df['strehl_via_fwhm'])) + ', std={:.2f}'.format(np.std(df['strehl_via_fwhm'])) + ' (Perfect is S=1.0)')
+    axs[2].set_xlabel('x_pos_pix')
+    axs[2].set_ylabel('y_pos_pix')
 
-    # criterion for success:
-    # Plate scale 32.7 mas/pix
+    plt.tight_layout()
+    file_name_plot_strehl = 'nirao_14_plot_strehl_spots_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
+    plt.savefig(file_name_plot_strehl)
+    plt.close()
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot of Strehls to '+file_name_plot_strehl)
+
+    # criterion for success: Strehls > 0.9
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: S > 0.9 at all positions')
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, x [pix, abs coords]: {:.3f}'.format(sigma_x))
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, y [pix, abs coords]: {:.3f}'.format(sigma_y))
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
-    if np.all(df['strehl_via_peak_intensity'] > 0.9):
-        logger.info('######   NIRAO-14 Image quality result: PASS   ######')
-    elif np.all(df['strehl_via_peak_intensity'] > 0.9-np.std(df['strehl_via_peak_intensity'])):
-        logger.info('######   NIRAO-14 Image quality result: CONDITIONAL PASS (lowest Strehl within error around 0.9)  ######')
+    if np.all(df['strehl_via_peak_intensity_fixed_gaussian'] > 0.9):
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result: PASS   ######')
+    elif np.all(df['strehl_via_peak_intensity_fixed_gaussian'] > 0.9-np.std(df['strehl_via_peak_intensity_fixed_gaussian'])):
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result: CONDITIONAL PASS (lowest Strehl within error around 0.9)  ######')
     else:
-        logger.info('######   NIRAO-14 Image quality result: FAIL   ######')
+        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result: FAIL   ######')
 
-    logger.info('--------------------------------------------------')
-    # import ipdb; ipdb.set_trace()
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
 
 if __name__ == "__main__":
