@@ -10,6 +10,7 @@ import scipy
 import pandas as pd
 from scipy import fftpack
 from photutils.centroids import centroid_sources, centroid_com
+from astropy.convolution import interpolate_replace_nans
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from skimage.transform import resize
@@ -31,14 +32,75 @@ def gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta):
     g = amplitude * np.exp(-(a * ((x - xo)**2) + 2 * b * (x - xo) * (y - yo) + c * ((y - yo)**2)))
     return g.ravel()
 
+def expected_sigma(lambda_observation, FWHM_tbs_avg):
+    # Ideal DIRAC PSF:
+    #     r_Airy = 1.22 * (lambda/D) * F = 1.22 * lambda * F#
+    # where F# = 29 for DIRAC. So, for Y-band (1.02 um),
+    #     r_Airy = 1.22 * 1.02 um * 29 = 36.09 um = 36.09 um / (18 um/pix ) = 2.00 pixels
+    # Now,
+    #     FWHM_Airy = 1.028 * lambda/D
+    # so
+    #     r_Airy/FWHM_Airy = 1.187
+    # Thus, for Y-band, we expect
+    #     FWHM_DIRAC_ideal = FWHM_Airy = r_Airy / 1.187 = 36.09 um / 1.187 = 30.40 um
+    # Relation between sigma and FWHM of Gaussian (consider FWHM_Airy and FWHM_Gaussian to be the same)
+    #     FWHM_Gauss =2√2ln2σ≈2.355σ, where FWHM_DIRAC_ideal = 30.40 um / (18 um/pix) = 1.69 pix
+    # Thus, 
+    #     σ = FWHM_Gauss/2.355 = 0.717 IF it's only PSF_DIRAC (Y-band)
+    # For PSF_total, 
+    #     FWHM_tot_ideal = np.sqrt( FWHM_TBS**2 + FWHM_DIRAC_ideal**2 ) = np.sqrt( (45 um)**2 + (30.40 um)**2 ) = 54.31 um
+    # then 
+    #     FWHM_tot_ideal = 54.31 um / (18 um/pix) = 3.01 pix
+    #     σ_ideal = FWHM/2.355 = 3.01/2.355 = 1.278 pix
+
+    # The same reasoning for H-band (1.63 um) leads to
+    #     r_Airy = 57.67 um = 3.20 pixels
+    #     FWHM_DIRAC_ideal = FWHM_Airy = 48.58 um
+    #     σ = 1.15 pix
+    #     FWHM_tot_ideal = 66.06 um = 3.67 pix
+    #     σ_ideal = FWHM_tot_ideal / 2.355 = 28.05 um = 1.56 pix
+
+    r_Airy = 1.22 * lambda_observation * 29 # um
+    FWHM_Airy = r_Airy / 1.187 # um
+    FWHM_DIRAC_ideal = FWHM_Airy
+    sigma_gauss = (FWHM_Airy / 2.355) / 18. # pix (DIRAC; 18 um per pix)
+    FWHM_tot_ideal_um = np.sqrt( FWHM_tbs_avg ** 2 + FWHM_DIRAC_ideal ** 2 )
+    FWHM_tot_ideal_pix = FWHM_tot_ideal_um / 18.
+    
+    sigma_expected = sigma_gauss
+
+    #sigma_x_pix = 1.278
+    #sigma_y_pix = 1.278
+
+    return sigma_expected
+
 
 def gaussian_2d_fixed_sigmas(xy_mesh, amplitude, xo, yo, theta):
-    # FWHM=2√2ln2σ≈2.355σ, where FWHM_DIRAC_ideal = 30.40 um / (18 um/pix) = 1.69 pix
-    # Thus, σ = FWHM/2.355 = 0.717 IF it's only PSF_DIRAC
+    # Ideal DIRAC PSF:
+    #     r_Airy = 1.22 * (lambda/D) * F = 1.22 * lambda * F#
+    # where F# = 29 for DIRAC. So, for Y-band (1.02 um),
+    #     r_Airy = 1.22 * 1.02 um * 29 = 36.09 um = 36.09 um / (18 um/pix ) = 2.00 pixels
+    # Now,
+    #     FWHM_Airy = 1.028 * lambda/D
+    # so
+    #     r_Airy/FWHM_Airy = 1.187
+    # Thus, for Y-band, we expect
+    #     FWHM_Airy = r_Airy / 1.187 = 36.09 um / 1.187 = 30.40 um
+    # Relation between sigma and FWHM of Gaussian:
+    #     FWHM_Gauss =2√2ln2σ≈2.355σ, where FWHM_DIRAC_ideal = 30.40 um / (18 um/pix) = 1.69 pix
+    # Thus, 
+    #     σ = FWHM_Gauss/2.355 = 0.717 IF it's only PSF_DIRAC (Y-band)
     # For PSF_total, FWHM_tot_ideal = np.sqrt( FWHM_TBS**2 + FWHM_DIRAC_ideal**2 ) = np.sqrt( (45 um)**2 + (30.40 um)**2 ) = 54.31 um TODO: make FWHM_tbs_avg get passed to here
     # then 
-    # FWHM_tot_ideal = 54.31 um / (18 um/pix) = 3.01
-    # σ_ideal = FWHM/2.355 = 3.01/2.355 = 1.278
+    #     FWHM_tot_ideal = 54.31 um / (18 um/pix) = 3.01
+    #     σ_ideal = FWHM/2.355 = 3.01/2.355 = 1.278
+
+    # The same reasoning for H-band (1.63 um) leads to
+    #     r_Airy = 57.67 um = 3.20 pixels
+    #     FWHM_Airy = 
+    #     σ = 
+    #     FWHM_tot_ideal = 
+    #     σ_ideal = 
 
     sigma_x_pix = 1.278
     sigma_y_pix = 1.278
@@ -259,7 +321,7 @@ def strehl_based_on_peak_intensities_w_variable_gaussian(frame, center_guess, ba
     return strehl_simple
 
 
-def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpix, sigma_x_fixed, sigma_y_fixed):
+def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpix, sigma_x_fixed_pix_dirac, sigma_y_fixed_pix_dirac):
     """
     Calculate the Strehl ratio based on peak intensities using a fixed-width Gaussian fit.
 
@@ -267,8 +329,8 @@ def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpi
     frame (ndarray): 2D array representing the frame.
     center_guess (list): List containing the initial guess for the center coordinates.
     badpix (float): Value representing bad pixels.
-    sigma_x_fixed (float): Fixed standard deviation in the x-direction.
-    sigma_y_fixed (float): Fixed standard deviation in the y-direction.
+    sigma_x_fixed_pix_dirac (float): Fixed standard deviation in the x-direction.
+    sigma_y_fixed_pix_dirac (float): Fixed standard deviation in the y-direction.
 
     Returns:
     strehl_simple (float): Strehl ratio based on peak intensities.
@@ -281,7 +343,7 @@ def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpi
     popt, pcov = curve_fit(gaussian_2d_fixed_sigmas, xy_mesh, frame.ravel(), p0=p0)
 
     # best-fit Gaussian with fixed sigma (or FWHM)
-    model_fit_fixed_sigmas = gaussian_2d(xy_mesh, amplitude=popt[0], xo=popt[1], yo=popt[2], sigma_x_pix=sigma_x_fixed, sigma_y_pix=sigma_y_fixed, theta=popt[3]).reshape(frame.shape)
+    model_fit_fixed_sigmas = gaussian_2d(xy_mesh, amplitude=popt[0], xo=popt[1], yo=popt[2], sigma_x_pix=sigma_x_fixed_pix_dirac, sigma_y_pix=sigma_y_fixed_pix_dirac, theta=popt[3]).reshape(frame.shape)
 
     # to avoid effect of bad pixels, only consider max within small region around spot
     buffer_size = 10
@@ -296,8 +358,9 @@ def strehl_based_on_peak_intensities_w_fixed_gaussian(frame, center_guess, badpi
     return strehl_simple
 
 
-def main(data_date = '20240710'):
+def main(data_date):
     # 20240710 is Y-band
+    # 20240709 is H-band
 
     # upsampling (keep 1 for now)
     upsampling = 1
@@ -315,13 +378,28 @@ def main(data_date = '20240710'):
     logging.getLogger().addHandler(console)
     logger = logging.getLogger()
 
+
+
+    #sigma_x_fixed_pix_dirac_y_band = 0.717
+    #sigma_x_fixed_pix_dirac_h_band = 
+    
+
     if data_date == '20240710':
         stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240710/'
-        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits') # darks from 20240610
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240709':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240709/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_h_band # H-band
+        lambda_observation = 1.63 # um
+        logger.warning('!!! Science data is in H-band; TBS PSF is in Y-band, so fixed-width Gaussians will not give accurate Strehl !!!')
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-14 Image Quality test')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Strehl ratio measured for all PSF locations > 90%')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Using data from ' + data_date)
     logger.info('-----------------------------------------------------')
 
     badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
@@ -356,6 +434,7 @@ def main(data_date = '20240710'):
     # TBS pixel pitch is 5.2 um/pix; DIRAC camera magnification is 2x
     fwhm_tbs_um = 0.5 * (tbs_fwhm_x_pix_tbs + tbs_fwhm_y_pix_tbs) * 5.2 * 2 # average FWHM of TBS in DIRAC pixels
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': TBS FWHM, xy avg. (um): {:.2f}'.format(fwhm_tbs_um))
+    sigma_fixed_pix_dirac = expected_sigma(lambda_observation, FWHM_tbs_avg=fwhm_tbs_um)
     #fwhm_tbs_um = (np.min([tbs_fwhm_x_pix_tbs,tbs_fwhm_y_pix_tbs])) * 5.2 * 2 # option: min FWHM of TBS in DIRAC pixels
 
     # Read the text file with coord guesses into a Pandas DataFrame
@@ -374,6 +453,10 @@ def main(data_date = '20240710'):
     # initialize
     df = pd.DataFrame(columns=['spot number', 'fwhm_x_pix', 'fwhm_y_pix', 'x_pos_pix', 'y_pos_pix', 'fwhm_tbs_um'])
 
+    # instantiate bad pixel fixing
+    #do_fixpix = FixPixSingle(config)
+    #pool.map(do_fixpix, darksubt_01_name_array)
+
     # loop over all frames
     for i in range(0,len(df_coord_guesses['filename'].values)):
 
@@ -388,6 +471,18 @@ def main(data_date = '20240710'):
         # read in science frame
         hdul = fits.open(file_name_this)
         sci_this = hdul[0].data
+
+        sci_this = sci_this.astype(float)
+        sci_this[badpix == 1] = np.nan
+
+        # bad pixel correction
+        kernel_square = np.ones((3,3))
+        image_fixpixed = interpolate_replace_nans(array=sci_this, kernel=kernel_square) #.astype(np.int32)
+        # replace remaining NaNs with median (these are likely overscan pixels)
+        image_fixpixed[np.isnan(image_fixpixed)] = np.nanmedian(image_fixpixed)
+
+        # reassign
+        sci_this = image_fixpixed
 
         # dark subtract
         frame_this = sci_this - dark_median
@@ -413,7 +508,7 @@ def main(data_date = '20240710'):
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Found Strehl using variable Gaussian: {:.2f}'.format(strehl_via_peak_intensity_variable_gaussian))
 
         # Strehl ratio based on comparison of Gaussian fit (parameters are free except for fixed, ideal FWHM in x and y) with empirical
-        strehl_peak_intensity_fixed_gaussian = strehl_based_on_peak_intensities_w_fixed_gaussian(frame_this, coord_guess[i], badpix, sigma_x_fixed=0.717, sigma_y_fixed=0.717)
+        strehl_peak_intensity_fixed_gaussian = strehl_based_on_peak_intensities_w_fixed_gaussian(frame_this, coord_guess[i], badpix, sigma_x_fixed_pix_dirac=sigma_fixed_pix_dirac, sigma_y_fixed_pix_dirac=sigma_fixed_pix_dirac)
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Found Strehl using fixed-width Gaussian: {:.2f}'.format(strehl_peak_intensity_fixed_gaussian))
 
         # plot empirical spots, the best Gaussian fits, and the residuals
@@ -532,4 +627,6 @@ def main(data_date = '20240710'):
 
 
 if __name__ == "__main__":
-    main()
+    # 20240710 is Y-band
+    # 20240709 is H-band (different band from TBS PSF!)
+    main(data_date = '20240710')
