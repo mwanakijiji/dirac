@@ -77,6 +77,67 @@ def main():
     # make file names absolute
     df_coord_guesses['filename'] = stem + df_coord_guesses['filename']
 
+    # PSF of the TBS, as measured Apr. 12, 2024 (email from RZ)
+    psf_tbs = np.array([[4, 4,  4,  4,  4],
+                    [5, 8,  16, 19, 16],
+                    [16,43, 79, 80, 52],
+                    [50, 129, 186, 175, 115],
+                    [103, 212, 236, 226, 180],
+                    [132, 236, 233, 216, 195],
+                    [95, 198, 230, 216, 159],
+                    [38, 93, 151, 148, 94],
+                    [12, 25, 47, 48, 31],
+                    [5, 5, 8, 7, 6],
+                    [3, 3, 4, 3, 3]]) 
+    # fit Gaussian model to TBS PSF
+    tbs_fit_result, tbs_fwhm_x_pix, tbs_fwhm_y_pix, tbs_sigma_x_pix, tbs_sigma_y_pix = fit_gaussian(psf_tbs, np.array([2.5, 5]))
+    # residuals of TBS PSF and its best fit model
+    tbs_resids = tbs_fit_result - psf_tbs
+    # net instrument FWHM: take average of x and y
+    # factors of 5.2 um/pix (TBS pixel pitch) and 2 (DIRAC camera magnification) from email from RZ, 2024 04 12
+    fwhm_tbs_um = 0.5 * (tbs_fwhm_x_pix + tbs_fwhm_y_pix) * 5.2 * 2 # i.e., this is the instrumental PSF FWHM inside of DIRAC
+
+    # Make 3D plot of TBS PSF: Create a meshgrid for x and y coordinates
+    x = np.arange(psf_tbs.shape[1])
+    y = np.arange(psf_tbs.shape[0])
+    X, Y = np.meshgrid(x, y)
+    # Create a figure and a 3D axis
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    # Plot the psf_tbs surface
+    ax.plot_surface(X, Y, psf_tbs, cmap='Oranges_r', alpha=0.8)
+    # Plot the tbs_fit_result surface
+    ax.plot_surface(X, Y, tbs_fit_result, cmap='Purples_r', alpha=0.8)
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Intensity')
+    ax.set_title('PSF Comparison')
+    # Show the plot
+    plt.savefig(f'tbs_psf_3d_plot.png')
+
+    import ipdb; ipdb.set_trace()
+
+    # Make 2D plot of TBS PSF
+    plt.clf()
+    fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+    im0 = axs[0].imshow(psf_tbs, cmap='gray')
+    axs[0].set_title('image')
+    im1 = axs[1].imshow(tbs_fit_result, cmap='gray')
+    axs[1].set_title('best fit\nFWHM_x (pix): {:.2f}\nFWHM_y (pix): {:.2f}'.format(tbs_fwhm_x_pix, tbs_fwhm_y_pix))
+    im2 = axs[2].imshow(tbs_resids, cmap='gray')
+    axs[2].set_title('residuals')
+    # Set the same color scale for first two subplots
+    vmin = min(im0.get_array().min(), im1.get_array().min(), im2.get_array().min())
+    vmax = max(im0.get_array().max(), im1.get_array().max(), im2.get_array().max())
+    im0.set_clim(vmin, vmax)
+    im1.set_clim(vmin, vmax)
+    im2.set_clim(vmin, vmax)
+    plt.savefig(f'tbs_psf_2d_plot_resids.png')
+
+
+    import ipdb; ipdb.set_trace()
+
     file_names = df_coord_guesses['filename'].values
     
     # put all the (x,y) guesses of the spot centers into a list
@@ -88,7 +149,7 @@ def main():
         coord_guess.append(np.array([x_guess, y_guess]))
 
     # read/process set of frames corresponding to upper left (of micrometer space; coords are flipped on readout)
-    df = pd.DataFrame(columns=['spot number', 'fwhm_x_pix', 'fwhm_y_pix', 'x_pos_pix', 'y_pos_pix']) # initialize
+    df = pd.DataFrame(columns=['spot number', 'fwhm_x_pix', 'fwhm_y_pix', 'x_pos_pix', 'y_pos_pix', 'fwhm_tbs_um']) # initialize
     for i in range(0,len(file_names)):
 
         try: 
@@ -106,6 +167,7 @@ def main():
 
             resids = cookie_cut_out_best_fit - cookie_cut_out_sci
 
+            plt.clf()
             fig, axs = plt.subplots(1, 3, figsize=(12, 4))
 
             # Plot cookie_cut_out_sci
@@ -120,28 +182,28 @@ def main():
             im2 = axs[2].imshow(resids, cmap='gray')
             axs[2].set_title('residuals')
 
-            # Set the same color scale for all subplots
+            # Set the same color scale for first two subplots
             vmin = min(im0.get_array().min(), im1.get_array().min(), im2.get_array().min())
             vmax = max(im0.get_array().max(), im1.get_array().max(), im2.get_array().max())
             im0.set_clim(vmin, vmax)
             im1.set_clim(vmin, vmax)
-            im2.set_clim(vmin, vmax)
+            #im2.set_clim(vmin, vmax) 
 
             plt.tight_layout()
             plt.savefig(f'figure_{i:02d}.png')
             plt.close()
 
             # append the values i, fwhm_x_pix, and fwhm_y_pix in the pandas dataframe
-            df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0]}, ignore_index=True)
+            df = df.append({'spot number': int(i), 'fwhm_x_pix': fwhm_x_pix, 'fwhm_y_pix': fwhm_y_pix, 'x_pos_pix': x_pos_pix[0], 'y_pos_pix': y_pos_pix[0], 'fwhm_tbs_um': fwhm_tbs_um}, ignore_index=True)
 
         except: 
             print('Failed on '+str(i))
 
     # add in FWHM values in microns 
-    df['fwhm_x_um'] = 5.2 * df['fwhm_x_pix'] # 5.2 um per pixel
-    df['fwhm_y_um'] = 5.2 * df['fwhm_y_pix']
+    df['fwhm_x_um'] = 18. * df['fwhm_x_pix'] # 18 um per pixel in DIRAC
+    df['fwhm_y_um'] = 18. * df['fwhm_y_pix']
 
-    df.to_csv('output.csv', index=False)
+    df.to_csv('junk_output.csv', index=False)
 
     # make a plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))

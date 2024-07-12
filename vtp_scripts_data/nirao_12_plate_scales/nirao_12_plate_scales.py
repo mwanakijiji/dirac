@@ -182,26 +182,26 @@ def main(data_date = '20240517'):
 
     # criterion for success:
     # Plate scale 32.7 mas/pix
-    logger.info('-----------------------------------------------------')
-    logger.info('-----------------------------------------------------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
-    logger.info('----------')
-    logger.info('Expected offset magnitudes [pix]: ' + str(3.689 * 4.2 * 1e3 / 32.7 )) # constant * mm * (mm in m) / PS
-    logger.info('Measured offset, upper left del_x [pix]: ' + str(del_x_ul))
-    logger.info('Measured offset, upper left del_y [pix]: ' + str(del_y_ul))
-    logger.info('Measured offset, upper right del_x [pix]: ' + str(del_x_ur))
-    logger.info('Measured offset, upper right del_y [pix]: ' + str(del_y_ur))
-    logger.info('Measured offset, lower left del_x [pix]: ' + str(del_x_ll))
-    logger.info('Measured offset, lower left del_y [pix]: ' + str(del_y_ll))
-    logger.info('Measured offset, lower right del_x [pix]: ' + str(del_x_lr))
-    logger.info('Measured offset, lower right del_y [pix]: ' + str(del_y_lr))
-    logger.info('----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Expected offset magnitudes [pix]: ' + str(3.689 * 4.2 * 1e3 / 32.7 )) # constant * mm * (mm in m) / PS
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, upper left del_x [pix]: ' + str(del_x_ul))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, upper left del_y [pix]: ' + str(del_y_ul))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, upper right del_x [pix]: ' + str(del_x_ur))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, upper right del_y [pix]: ' + str(del_y_ur))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, lower left del_x [pix]: ' + str(del_x_ll))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, lower left del_y [pix]: ' + str(del_y_ll))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, lower right del_x [pix]: ' + str(del_x_lr))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured offset, lower right del_y [pix]: ' + str(del_y_lr))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Plate scale 32.7 mas/pix')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured plate scale: {:.3f} +- {:.3f} mas/pix'.format(np.mean(ps_all), np.std(ps_all)))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Percent variation from ideal: {:.1f}%'.format(100 * np.abs(np.mean(ps_all)-32.7)/32.7))
     #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
-    logger.info('--------------------------------------------------')
-    logger.info('--------------------------------------------------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
 
 if __name__ == "__main__":
