@@ -25,7 +25,7 @@ logger.info('-----------------------------------------------------')
 
 dark_raw_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/20sec.fits'
 bias_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/100ms.fits'
-badpix_file_name = stem + 'data/ersatz_bad_pix.fits'
+badpix_file_name = stem + 'data/calibs/ersatz_bad_pix.fits'
 
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
 logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
