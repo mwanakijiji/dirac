@@ -378,11 +378,6 @@ def main(data_date):
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
     logger = logging.getLogger()
-
-
-
-    #sigma_x_fixed_pix_dirac_y_band = 0.717
-    #sigma_x_fixed_pix_dirac_h_band = 
     
 
     if data_date == '20240807':
@@ -505,6 +500,13 @@ def main(data_date):
 
         # dark subtract
         frame_this = sci_this - dark_median
+
+        # inject noise 
+        # FOR TESTING ONLY
+        '''
+        logger.info('!!!!!!!!! ----------- Testing with FAKE NOISE ----------- !!!!!!!!!')
+        frame_this += np.random.normal(scale=np.std(frame_this), size=np.shape(frame_this))
+        '''
 
         # find spot center
         x_pos_pix, y_pos_pix = centroid_sources(data=frame_this, xpos=coord_guess[i][0], ypos=coord_guess[i][1], box_size=21, centroid_func=centroid_com)
