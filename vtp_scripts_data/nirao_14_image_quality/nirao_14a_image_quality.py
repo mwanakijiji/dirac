@@ -644,22 +644,8 @@ def main(data_date):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: S > 0.9 at all positions')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
-    if np.all(df['strehl_via_peak_intensity_variable_gaussian'] > 0.9):
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via Gaussian fit: PASS   ######')
-    elif np.all(df['strehl_via_peak_intensity_variable_gaussian'] > 0.9-np.std(df['strehl_via_peak_intensity_variable_gaussian'])):
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via Gaussian fit: PASS WITHIN ERROR (lowest Strehl within error around 0.9)  ######')
-    else:
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via Gaussian fit: FAIL   ######')
-
-    '''
-    if np.all(df['strehl_via_fwhm'] > 0.9):
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via FWHM: PASS   ######')
-    elif np.all(df['strehl_via_fwhm'] > 0.9-np.std(df['strehl_via_fwhm'])):
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via FWHM: PASS WITHIN ERROR (lowest Strehl within error around 0.9)  ######')
-    else:
-        logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via FWHM: FAIL   ######')
-    '''
-        
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-14 Image quality result via Gaussian fit: Now process data with nirao_14b_error_bars.py   ######')
+ 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
 
