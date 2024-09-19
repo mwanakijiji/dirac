@@ -14,6 +14,7 @@ import matplotlib.transforms as transforms
 from skimage.transform import resize
 from PIL import Image
 from skimage import color, data, restoration
+from image_registration import chi2_shift
 
 
 def deconvolve(star, psf):
@@ -155,8 +156,8 @@ def dark_subt(raw_science_frame_file_names, dark_array):
     return median_frame
 
 
-def main(data_date = '20240516'):
-    # 20240516 is best data
+def main(data_date = '20240919'):
+    # 20240919 is best data
 
     # start logging
     log_file_name = 'log_nirao_02_vibration_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
@@ -169,9 +170,9 @@ def main(data_date = '20240516'):
     logging.getLogger().addHandler(console)
     logger = logging.getLogger()
 
-    if data_date == '20240516':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240516/'
-        dark_frame_file_names = glob.glob(stem + '../calibs/darks/*.fits') # darks from 20240517
+    if data_date == '20240919':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits') # darks from 20240919
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-02 Vibration test')
@@ -181,18 +182,7 @@ def main(data_date = '20240516'):
                 'of fixed position on pupil edge between exposures, will not exceed 1/50 of pupil diameter.')
     logger.info('-----------------------------------------------------')
 
-    #dark_raw_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/20sec.fits'
-    #bias_file_name = stem + 'data/tests_junk_13may/pos1_selected_cold_target_not_cold/100ms.fits'
     badpix_file_name = stem + '../calibs/ersatz_bad_pix.fits'
-
-    # positions of micrometer [mm]
-
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bad pixel mask: ' + badpix_file_name)
-
-    #simple_bias_file_names = [stem + 'DIRAC_20240515_135139.fits', stem + 'DIRAC_20240515_135152.fits']
-    #cds_bias_file_names = [stem + 'DIRAC_20240515_135206.fits', stem + 'DIRAC_20240515_135223.fits']
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -216,38 +206,17 @@ def main(data_date = '20240516'):
     # fraction of good pixels within science region of detector (i.e., 4-pixel-wide overscan region of 16320 pixels removed)
     frac_finite = N_pix_finite/(N_pix_tot - 16320)
 
-    # read in dark
-    '''
-    hdul_dark_raw = fits.open(dark_raw_file_name)
-    dark_raw = hdul_dark_raw[0].data.astype(np.float32) # convert to float to allow NaNs
-    dark_raw[badpix == 1] = np.nan
-    '''
+    if data_date == '20240919': 
+        sci_frame_focal_plane_file_names = glob.glob(stem + 'lights/focal_plane/*fits')
+        sci_frame_pupil_plane_file_names = glob.glob(stem + 'lights/pupil_plane/*fits')
 
-    if data_date == '20240516': 
-        # read/process set of frames corresponding to upper left (of micrometer space; coords are flipped on readout)
-        sci_frame_file_names = glob.glob(stem + 'DIRAC_20240516_17033[2-9].fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1703[4-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_170[4-5]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1706[0-2]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17063[0-3]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17111[7-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1711[2-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1712*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1713[0-3]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17134[0-5]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17150[7-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17151*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_17165[2-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_1716[6-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_171[6-9]*.fits')
-        sci_frame_file_names += glob.glob(stem + 'DIRAC_20240516_172[0-8]*.fits')
-        #ul = dark_subt_take_median(raw_science_frame_file_names=ul_raw_frame_file_names, bias_array=bias_simple)
+    ## ## PROCESS FOCAL-PLANE IMAGES
 
     # dark-subtract each frame, centroid on the spot
     x_cen_array = []
     y_cen_array = []
-    for i in range(0,len(sci_frame_file_names)):
-        hdul = fits.open(sci_frame_file_names[i])
+    for i in range(0,len(sci_frame_focal_plane_file_names)):
+        hdul = fits.open(sci_frame_focal_plane_file_names[i])
         sci_this = hdul[0].data
         
         sci = sci_this - dark_median
@@ -265,16 +234,28 @@ def main(data_date = '20240516'):
 
         # deconvolve to find PSF width
         raw_cutout_size = 250
-        upsampling = 1
+        upsampling = 1 # don't change!
         cutout = sci[int(y_cen-0.5*raw_cutout_size):int(y_cen+0.5*raw_cutout_size),
             int(x_cen-0.5*raw_cutout_size):int(x_cen+0.5*raw_cutout_size)] # cut out star
         cutout_image = Image.fromarray(cutout)
         cutout_upsampled = cutout_image.resize((cutout.shape[1]*upsampling, cutout.shape[0]*upsampling))
         cutout_upsampled = np.array(cutout_upsampled)
-        #import ipdb; ipdb.set_trace()
 
         psf_tbs = gen_model_tbs_psf(raw_cutout_size = raw_cutout_size, upsampling = upsampling)
         star_deconv = deconvolve(cutout_upsampled, psf_tbs)
+
+        ## ## MAY NEED TO FIND FWHM USING SIMPLER CRITERIA HERE
+        # FWHM of spot *without* TBS should be 
+        # r_Airy = 1.22 * (lambda/D) * F 
+        #        = 1.22 * lambda * F#
+        #        = 1.22 * (1.570 um) * (29)     [ H-cont filter ]
+        #        = 55.5466 um
+        # FWHM_Airy = r_Airy / 1.187 = 46.796 um / (18 um / pix) = 2.6 pix
+
+        # To find the FWHM based on the data, we use
+        # FWHM_DIRAC = sqrt( FWHM_meas ** 2 - FWHM_TBS** 2 )
+        #            = sqrt( FWHM_meas ** 2 - (44.75 um)** 2 )
+        # ... which should be within 0.9* to 1.1*l/D, or 0.9* to 1.1*(45.53 um) = 41.0 to 50.0 um = 2.28 to 2.78 pix
 
         # begin test
         '''
@@ -296,13 +277,13 @@ def main(data_date = '20240516'):
         # end test
 
 
-    # sanity check: compare with euclidean distances from the sample mean
+    # euclidean distances from the sample mean
     # find the sample mean of the points
     x_cen_mean = np.mean(x_cen_array)
     y_cen_mean = np.mean(y_cen_array)
     # find euclidean distances from the sample mean
     d_array = np.sqrt( np.power((x_cen_array-x_cen_mean), 2) + np.power((y_cen_array-y_cen_mean), 2) )
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances from the mean [pix]: {:.3f}'.format(np.mean(d_array)))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of focal plane images from the mean [pix]: {:.3f}'.format(np.mean(d_array)))
 
     fig, ax = plt.subplots(1, 1, figsize=(3, 3))
     sigma_x, sigma_y, _ = confidence_ellipse(x = x_cen_array, y = y_cen_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
@@ -320,8 +301,33 @@ def main(data_date = '20240516'):
     plt.savefig(plot_file_name)
     '''
 
-    # criterion for success:
-    # Plate scale 32.7 mas/pix
+    ## ## PROCESS PUPIL-PLANE IMAGES
+    hdul = fits.open(sci_frame_pupil_plane_file_names[0])
+    sci_this = hdul[0].data
+    basis_frame = sci_this - dark_median
+
+    # read in frames, do x-y correlation, and see difference
+    xoff_array = []
+    yoff_array = []
+    exoff_array = []
+    eyoff_array = []
+    for i in range(0,len(sci_frame_pupil_plane_file_names)):
+        xoff, yoff, exoff, eyoff = chi2_shift(this_frame, basis_frame)
+        xoff_array.append(xoff)
+        yoff_array.append(yoff)
+        exoff_array.append(exoff)
+        eyoff_array.append(eyoff)
+
+    # find euclidean distances from the basis image
+    d_array = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array)))
+
+    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    sigma_x, sigma_y, _ = confidence_ellipse(x = xoff_array, y = yoff_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
+    ax.scatter(xoff_array, yoff_array)
+    plt.show()
+
+
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
