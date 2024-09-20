@@ -6,6 +6,7 @@ from astropy.io import fits
 import logging
 import datetime
 import glob
+import ipdb
 import scipy
 from scipy import fftpack
 from photutils.centroids import centroid_sources, centroid_com
@@ -52,14 +53,13 @@ def main(data_date = '20240919'):
         position_4_frames = glob.glob(stem + 'position_4/*.fits')
         position_5_frames = glob.glob(stem + 'position_5/*.fits')
 
-
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-01 Installation test')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: PSF centroids ' +\ 
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: PSF centroids '+\
                 'are within 22 pixels of each other across all images (corresponds to 0.2 mm camera position)')
     logger.info('-----------------------------------------------------')
 
-    badpix_file_name = stem + '../calibs/ersatz_bad_pix.fits'
+    badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -72,6 +72,7 @@ def main(data_date = '20240919'):
         hdul = fits.open(file_name)
         dark_this = hdul[0].data
         dark_array.append(dark_this)
+    
     dark_median = np.median(dark_array, axis=0)
     # mask bad pixels
     dark_median[badpix == 1] = np.nan
@@ -83,15 +84,19 @@ def main(data_date = '20240919'):
     # fraction of good pixels within science region of detector (i.e., 4-pixel-wide overscan region of 16320 pixels removed)
     frac_finite = N_pix_finite/(N_pix_tot - 16320)
 
-    # make median frame for each of the positions
     def med_frame(file_name_array):
-        data_this = []
-        for i in range(0,len(file_name_array)):
-            hdul = fits.open(file_name_array[i])
+        data_array = []
+        for file_name in file_name_array:
+            hdul = fits.open(file_name)
             data_this = hdul[0].data
-            data_this -= dark_median # dark-subt
-            data_this.append(data_this)
-        frame_median = np.median(data_this, axis=0)
+            data_this = np.subtract(data_this, dark_median)  # dark-subtract
+            data_array.append(data_this)
+        
+        # Convert the list to a 3D NumPy array
+        data_array = np.array(data_array)
+        
+        # Compute the median along the first axis
+        frame_median = np.median(data_array, axis=0)
         return frame_median
                   
 
@@ -103,12 +108,12 @@ def main(data_date = '20240919'):
     pos_5 = med_frame(position_5_frames)
 
     # centroid on the spots
-    x_cen_baseline, y_cen_baseline = centroid_sources(data=pos_baseline, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
-    x_cen_1, y_cen_1 = centroid_sources(data=pos_1, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
-    x_cen_2, y_cen_2 = centroid_sources(data=pos_2, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
-    x_cen_3, y_cen_3 = centroid_sources(data=pos_3, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
-    x_cen_4, y_cen_4 = centroid_sources(data=pos_4, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
-    x_cen_5, y_cen_5 = centroid_sources(data=pos_5, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
+    x_cen_baseline, y_cen_baseline = centroid_sources(data=pos_baseline, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
+    x_cen_1, y_cen_1 = centroid_sources(data=pos_1, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
+    x_cen_2, y_cen_2 = centroid_sources(data=pos_2, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
+    x_cen_3, y_cen_3 = centroid_sources(data=pos_3, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
+    x_cen_4, y_cen_4 = centroid_sources(data=pos_4, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
+    x_cen_5, y_cen_5 = centroid_sources(data=pos_5, xpos=[536], ypos=[559], box_size=21, centroid_func=centroid_com)
 
     x_cen_array = [x_cen_baseline, x_cen_1, x_cen_2, x_cen_3, x_cen_4, x_cen_5]
     y_cen_array = [y_cen_baseline, y_cen_1, y_cen_2, y_cen_3, y_cen_4, y_cen_5]
@@ -116,10 +121,15 @@ def main(data_date = '20240919'):
     # absolute distances from baseline
 
     # distances from the baseline
+    plot_file_name = 'nirao_01_installation.png'
     plt.scatter(x_cen_array, y_cen_array)
-    circle = plt.Circle((x_cen_baseline, y_cen_baseline), 22, color='r', fill=False, linestyle='--')
+    circle = plt.Circle((x_cen_baseline, y_cen_baseline), radius=11, color='r', fill=False, linestyle='--')
     plt.gca().add_patch(circle)
-    plt.show()
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.title('NIRAO-1: Spot centers on detector between lifts\n(Red circle has diameter 22 pixels)')
+    plt.xlabel('x (pix)')
+    plt.ylabel('y (pix)')
+    plt.savefig(plot_file_name)
 
     def are_all_pairs_within_distance(x_array, y_array, N):
         num_points = len(x_array)
@@ -133,10 +143,6 @@ def main(data_date = '20240919'):
     # Example usage
     N = 22  # Define the distance threshold
     result = are_all_pairs_within_distance(x_cen_array, y_cen_array, N)
-    print(result) 
-
-
-
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
@@ -144,23 +150,12 @@ def main(data_date = '20240919'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
     # 0.1 * lambda/D @ 900 nm is equivalent to
     # 0.1 * (0.9e-6 m) * 206265" /( 4 m * 32.7e-3 "/pix) = 0.14 pix
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: PSF centroids ' +\ 
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: PSF centroids '+\
                 'are within 22 pixels of each other across all images (corresponds to 0.2 mm camera position)')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, x [pix, abs coords]: {:.3f}'.format(sigma_x))
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, y [pix, abs coords]: {:.3f}'.format(sigma_y))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Condition fulfilled: ' + str(result))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
-
-    '''
-    # TBD: incorporate other criteria too
-    if sigma_x < 0.14 and sigma_y < 0.14:
-        logger.info('######   NIRAO-02 Vibrations result: PASS   ######')
-    else:
-        logger.info('######   NIRAO-02 Vibrations result: FAIL   ######')
-
-    logger.info('--------------------------------------------------')
-    '''
 
 
 if __name__ == "__main__":
