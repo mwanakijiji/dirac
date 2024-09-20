@@ -7,6 +7,7 @@ import logging
 import datetime
 import glob
 import scipy
+import ipdb
 from scipy import fftpack
 from photutils.centroids import centroid_sources, centroid_com
 from matplotlib.patches import Ellipse
@@ -15,6 +16,46 @@ from skimage.transform import resize
 from PIL import Image
 from skimage import color, data, restoration
 from image_registration import chi2_shift
+from scipy.optimize import curve_fit
+
+
+def fit_gaussian(frame, center_guess):
+    """
+    Fit a 2D Gaussian function to a given frame.
+
+    Parameters:
+    frame (ndarray): 2D array representing the frame.
+    center_guess (list): List containing the initial guess for the center coordinates.
+
+    Returns:
+    fitted_array (ndarray): 2D array representing the fitted Gaussian function.
+    fwhm_x_pix (float): Full Width at Half Maximum (FWHM) in the x-direction.
+    fwhm_y_pix (float): Full Width at Half Maximum (FWHM) in the y-direction.
+    sigma_x_pix (float): Standard deviation in the x-direction.
+    sigma_y_pix (float): Standard deviation in the y-direction.
+    """
+    y, x = np.indices(frame.shape)
+    xy_mesh = (x, y)
+    p0 = [np.max(frame), center_guess[0], center_guess[1], 1, 1, 0]
+    popt, pcov = curve_fit(gaussian_2d, xy_mesh, frame.ravel(), p0=p0)
+    fitted_array = gaussian_2d(xy_mesh, *popt).reshape(frame.shape)
+    fwhm_x_pix = 2 * np.sqrt(2 * np.log(2)) * np.abs(popt[3])
+    fwhm_y_pix = 2 * np.sqrt(2 * np.log(2)) * np.abs(popt[4])
+    sigma_x_pix = popt[3]
+    sigma_y_pix = popt[4]
+    
+    return fitted_array, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix
+
+
+def gaussian_2d(xy_mesh, amplitude, xo, yo, sigma_x_pix, sigma_y_pix, theta):
+    x, y = xy_mesh
+    xo = float(xo)
+    yo = float(yo)
+    a = (np.cos(theta)**2) / (2 * sigma_x_pix**2) + (np.sin(theta)**2) / (2 * sigma_y_pix**2)
+    b = -(np.sin(2 * theta)) / (4 * sigma_x_pix**2) + (np.sin(2 * theta)) / (4 * sigma_y_pix**2)
+    c = (np.sin(theta)**2) / (2 * sigma_x_pix**2) + (np.cos(theta)**2) / (2 * sigma_y_pix**2)
+    g = amplitude * np.exp(-(a * ((x - xo)**2) + 2 * b * (x - xo) * (y - yo) + c * ((y - yo)**2)))
+    return g.ravel()
 
 
 def deconvolve(star, psf):
@@ -159,6 +200,12 @@ def dark_subt(raw_science_frame_file_names, dark_array):
 def main(data_date = '20240919'):
     # 20240919 is best data
 
+    # Criteria for success
+    # condition 1: change in FWHM of individual images will not exceed 0.1 λ/D @ 900 nm
+    # condition 2: standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
+    # condition 3: standard deviation of any blurring visible on pupil edges during single exposures will not exceed 1/50 of pupil diameter
+    # condition 4: standard deviation of fixed position on pupil edge between exposures will not exceed 1/50 of pupil diameter
+
     # start logging
     log_file_name = 'log_nirao_02_vibration_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
     logging.basicConfig(filename=log_file_name, 
@@ -182,7 +229,7 @@ def main(data_date = '20240919'):
                 'of fixed position on pupil edge between exposures, will not exceed 1/50 of pupil diameter.')
     logger.info('-----------------------------------------------------')
 
-    badpix_file_name = stem + '../calibs/ersatz_bad_pix.fits'
+    badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -207,11 +254,10 @@ def main(data_date = '20240919'):
     frac_finite = N_pix_finite/(N_pix_tot - 16320)
 
     if data_date == '20240919': 
-        sci_frame_focal_plane_file_names = glob.glob(stem + 'lights/focal_plane/*fits')
-        sci_frame_pupil_plane_file_names = glob.glob(stem + 'lights/pupil_plane/*fits')
+        sci_frame_focal_plane_file_names = glob.glob(stem + 'focal_plane_images/*fits')
+        sci_frame_pupil_plane_file_names = glob.glob(stem + 'pupil_plane_images/*fits')
 
     ## ## PROCESS FOCAL-PLANE IMAGES
-
     # dark-subtract each frame, centroid on the spot
     x_cen_array = []
     y_cen_array = []
@@ -220,29 +266,30 @@ def main(data_date = '20240919'):
         sci_this = hdul[0].data
         
         sci = sci_this - dark_median
+        # replace remaining NaNs with median (these are likely overscan pixels)
+        sci[np.isnan(sci)] = np.nanmedian(sci)
 
         # find centers
-        x_cen, y_cen = centroid_sources(data=sci, xpos=[544], ypos=[500], box_size=21, centroid_func=centroid_com)
+        x_cen, y_cen = centroid_sources(data=sci, xpos=[512], ypos=[561], box_size=21, centroid_func=centroid_com)
         x_cen_array.append(x_cen[0])
         y_cen_array.append(y_cen[0])
 
         # FYI
+        '''
         plt.clf()
         plt.imshow(sci)
         plt.scatter([x_cen], [y_cen], color='red')
         plt.show()
+        '''
 
-        # deconvolve to find PSF width
-        raw_cutout_size = 250
-        upsampling = 1 # don't change!
-        cutout = sci[int(y_cen-0.5*raw_cutout_size):int(y_cen+0.5*raw_cutout_size),
-            int(x_cen-0.5*raw_cutout_size):int(x_cen+0.5*raw_cutout_size)] # cut out star
-        cutout_image = Image.fromarray(cutout)
-        cutout_upsampled = cutout_image.resize((cutout.shape[1]*upsampling, cutout.shape[0]*upsampling))
-        cutout_upsampled = np.array(cutout_upsampled)
+        # make best fit Gaussian to empirical; all fit parameters are free
+        fit_result, fwhm_x_pix, fwhm_y_pix, sigma_x_pix, sigma_y_pix = fit_gaussian(sci, [x_cen[0], y_cen[0]])
 
-        psf_tbs = gen_model_tbs_psf(raw_cutout_size = raw_cutout_size, upsampling = upsampling)
-        star_deconv = deconvolve(cutout_upsampled, psf_tbs)
+        fwhm_x_um = 18. * fwhm_x_pix
+        fwhm_y_um = 18. * fwhm_y_pix
+        sigma_x_um = 18. * sigma_x_pix
+        sigma_y_um = 18. * sigma_y_pix
+
 
         ## ## MAY NEED TO FIND FWHM USING SIMPLER CRITERIA HERE
         # FWHM of spot *without* TBS should be 
@@ -257,38 +304,45 @@ def main(data_date = '20240919'):
         #            = sqrt( FWHM_meas ** 2 - (44.75 um)** 2 )
         # ... which should be within 0.9* to 1.1*l/D, or 0.9* to 1.1*(45.53 um) = 41.0 to 50.0 um = 2.28 to 2.78 pix
 
-        # begin test
-        '''
-        cutout_upsampled = testing_gaussian(raw_cutout_size = raw_cutout_size, upsampling = upsampling, sigma_expansion = 4)
-        #cutout_upsampled[:,125] = 0
-        psf_tbs = gen_model_tbs_psf(raw_cutout_size = raw_cutout_size, upsampling = upsampling)
-        star_deconv = deconvolve(cutout_upsampled, psf_tbs)
+    ipdb.set_trace()
+    FWHM_meas_pix = 0.5*(fwhm_x_pix + fwhm_y_pix) # average; pix
+    FWHM_meas_um = FWHM_meas_pix * 18.
+    FWHM_DIRAC_um = np.sqrt( FWHM_meas_um ** 2 - 44.75** 2 )
 
-        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-        axs[0].imshow(cutout_upsampled, cmap='gray')
-        axs[0].set_title('cutout_upsampled')
-        axs[1].imshow(psf_tbs, cmap='gray')
-        axs[1].set_title('psf_tbs')
-        axs[2].imshow(np.real(star_deconv), cmap='gray')
-        axs[2].set_title('deconv')
-        plt.tight_layout()
-        plt.show()
-        '''
-        # end test
+    def condition_1():
+        if (FWHM_DIRAC_um > 41.0) and (FWHM_DIRAC_um < 50.0): # pix
+            # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
+            return True
+        else:
+            return False
 
 
     # euclidean distances from the sample mean
+    # note: 
+    # @ 900 nm, 
+    # 0.1 * lambda/D = 0.1 * (0.9e-6 m / 4 m) * (206265”/rad) * (pix / 32.7e-3”) = 0.14 pix
     # find the sample mean of the points
     x_cen_mean = np.mean(x_cen_array)
     y_cen_mean = np.mean(y_cen_array)
-    # find euclidean distances from the sample mean
-    d_array = np.sqrt( np.power((x_cen_array-x_cen_mean), 2) + np.power((y_cen_array-y_cen_mean), 2) )
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of focal plane images from the mean [pix]: {:.3f}'.format(np.mean(d_array)))
+    xoff = x_cen_array-x_cen_mean
+    yoff = y_cen_array-y_cen_mean
+    # find euclidean distances from the basis image
+    d_array_frame_to_frame = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array_frame_to_frame)))
 
+    def condition_2():
+        if np.mean(d_array_frame_to_frame) < 0.14: # pix
+            # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
+            return True
+        else:
+            return False
+
+    # sanity check: size of 1-sigma confidence ellipse
     fig, ax = plt.subplots(1, 1, figsize=(3, 3))
     sigma_x, sigma_y, _ = confidence_ellipse(x = x_cen_array, y = y_cen_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
     ax.scatter(x_cen_array, y_cen_array)
     plt.show()
+    ipdb.set_trace()
 
     # find the distances between them
 
@@ -302,6 +356,8 @@ def main(data_date = '20240919'):
     '''
 
     ## ## PROCESS PUPIL-PLANE IMAGES
+
+    # read in basis frame; translations will be relative to this
     hdul = fits.open(sci_frame_pupil_plane_file_names[0])
     sci_this = hdul[0].data
     basis_frame = sci_this - dark_median
@@ -311,21 +367,41 @@ def main(data_date = '20240919'):
     yoff_array = []
     exoff_array = []
     eyoff_array = []
+
+    print('Measuring translations...')
     for i in range(0,len(sci_frame_pupil_plane_file_names)):
-        xoff, yoff, exoff, eyoff = chi2_shift(this_frame, basis_frame)
+        hdul = fits.open(sci_frame_pupil_plane_file_names[i])
+        sci_this = hdul[0].data # note no dark subtraction; illumination is just ambient
+
+        xoff, yoff, exoff, eyoff = chi2_shift(sci_this, basis_frame)
         xoff_array.append(xoff)
         yoff_array.append(yoff)
         exoff_array.append(exoff)
         eyoff_array.append(eyoff)
 
-    # find euclidean distances from the basis image
-    d_array = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array)))
+    ipdb.set_trace()
+    
 
+    # find euclidean distances from the basis image
+    d_array_frame_to_frame = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array_frame_to_frame)))
+
+    def condition_3():
+        # TBD
+        '''
+        if np.mean(d_array_frame_to_frame) < 0.14: # pix
+            # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
+            return True
+        else:
+            return False
+        '''
+
+    # sanity check: radius of confidence ellipse
     fig, ax = plt.subplots(1, 1, figsize=(3, 3))
     sigma_x, sigma_y, _ = confidence_ellipse(x = xoff_array, y = yoff_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
     ax.scatter(xoff_array, yoff_array)
     plt.show()
+    ipdb.set_trace()
 
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
