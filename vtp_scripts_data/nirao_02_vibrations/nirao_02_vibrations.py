@@ -201,10 +201,10 @@ def main(data_date = '20240919'):
     # 20240919 is best data
 
     # Criteria for success
-    # condition 1: change in FWHM of individual images will not exceed 0.1 λ/D @ 900 nm
-    # condition 2: standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
-    # condition 3: standard deviation of any blurring visible on pupil edges during single exposures will not exceed 1/50 of pupil diameter
-    # condition 4: standard deviation of fixed position on pupil edge between exposures will not exceed 1/50 of pupil diameter
+    # condition 1: change in FWHM of individual images will not exceed 0.1 λ/D @ 900 nm [0.14 pix]
+    # condition 2: standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm [0.14 pix]
+    # condition 3: standard deviation of any blurring visible on pupil edges during single exposures will not exceed 1/50 of pupil diameter [14.2 pix]
+    # condition 4: standard deviation of fixed position on pupil edge between exposures will not exceed 1/50 of pupil diameter [14.2 pix]
 
     # start logging
     log_file_name = 'log_nirao_02_vibration_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
@@ -223,7 +223,7 @@ def main(data_date = '20240919'):
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-02 Vibration test')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: FWHM of individual ' +\
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criteria for success: Change in FWHM of individual ' +\
                 'images, and standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm. '+\
                 'Standard deviation of any blurring visible on pupil edges during single exposures, and standard deviation '+\
                 'of fixed position on pupil edge between exposures, will not exceed 1/50 of pupil diameter.')
@@ -261,6 +261,8 @@ def main(data_date = '20240919'):
     # dark-subtract each frame, centroid on the spot
     x_cen_array = []
     y_cen_array = []
+    fwhm_x_pix_array = []
+    fwhm_y_pix_array = []
     for i in range(0,len(sci_frame_focal_plane_file_names)):
         hdul = fits.open(sci_frame_focal_plane_file_names[i])
         sci_this = hdul[0].data
@@ -290,8 +292,9 @@ def main(data_date = '20240919'):
         sigma_x_um = 18. * sigma_x_pix
         sigma_y_um = 18. * sigma_y_pix
 
+        fwhm_x_pix_array.append(fwhm_x_pix)
+        fwhm_y_pix_array.append(fwhm_y_pix)
 
-        ## ## MAY NEED TO FIND FWHM USING SIMPLER CRITERIA HERE
         # FWHM of spot *without* TBS should be 
         # r_Airy = 1.22 * (lambda/D) * F 
         #        = 1.22 * lambda * F#
@@ -304,14 +307,16 @@ def main(data_date = '20240919'):
         #            = sqrt( FWHM_meas ** 2 - (44.75 um)** 2 )
         # ... which should be within 0.9* to 1.1*l/D, or 0.9* to 1.1*(45.53 um) = 41.0 to 50.0 um = 2.28 to 2.78 pix
 
-    ipdb.set_trace()
-    FWHM_meas_pix = 0.5*(fwhm_x_pix + fwhm_y_pix) # average; pix
+    FWHM_DIRAC_ideal = 46.796 / 18
+    FWHM_meas_pix = 0.5*(np.mean(fwhm_x_pix_array) + np.mean(fwhm_y_pix_array)) # average; pix
     FWHM_meas_um = FWHM_meas_pix * 18.
     FWHM_DIRAC_um = np.sqrt( FWHM_meas_um ** 2 - 44.75** 2 )
+    FWHM_DIRAC_pix = FWHM_DIRAC_um/18.
 
     def condition_1():
-        if (FWHM_DIRAC_um > 41.0) and (FWHM_DIRAC_um < 50.0): # pix
-            # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
+        # change in FWHM of individual images will not exceed 0.1 λ/D @ 900 nm [0.14 pix]
+        # check ideal-minus-measured
+        if (FWHM_DIRAC_ideal-FWHM_DIRAC_pix < 0.14): # pix
             return True
         else:
             return False
@@ -326,34 +331,28 @@ def main(data_date = '20240919'):
     y_cen_mean = np.mean(y_cen_array)
     xoff = x_cen_array-x_cen_mean
     yoff = y_cen_array-y_cen_mean
-    # find euclidean distances from the basis image
+    # find euclidean offsets
     d_array_frame_to_frame = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array_frame_to_frame)))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean offsets of focal plane images [pix]: {:.3f}'.format(np.mean(d_array_frame_to_frame)))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Standard deviation of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.std(d_array_frame_to_frame)))
 
     def condition_2():
-        if np.mean(d_array_frame_to_frame) < 0.14: # pix
+        if np.std(d_array_frame_to_frame) < 0.14: # pix
             # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
             return True
         else:
             return False
 
     # sanity check: size of 1-sigma confidence ellipse
-    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    file_name_focal_plane_jitter = 'nirao_2_vibrations_focal_plane_jitter.png'
+    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
     sigma_x, sigma_y, _ = confidence_ellipse(x = x_cen_array, y = y_cen_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
     ax.scatter(x_cen_array, y_cen_array)
-    plt.show()
-    ipdb.set_trace()
-
-    # find the distances between them
-
-    # plot histogram
-    '''
-    plot_file_name = 'scratch_nirao_09_hist_e_counts.png'
-    plt.hist(dark_curr_e_full_frame[np.isfinite(dark_curr_e_full_frame)], bins=100)
-    plt.title('Histogram of e- across detector')
-    plt.xlabel('N_e in a pixel')
-    plt.savefig(plot_file_name)
-    '''
+    ax.set_xlabel('x (pixel)')
+    ax.set_ylabel('y (pixel)')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.title('NIRAO-2: Focal plane image centroids \nand 1-sigma confidence ellipse')
+    plt.savefig(file_name_focal_plane_jitter)
 
     ## ## PROCESS PUPIL-PLANE IMAGES
 
@@ -369,40 +368,55 @@ def main(data_date = '20240919'):
     eyoff_array = []
 
     print('Measuring translations...')
+    plt.clf()
+    fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     for i in range(0,len(sci_frame_pupil_plane_file_names)):
         hdul = fits.open(sci_frame_pupil_plane_file_names[i])
         sci_this = hdul[0].data # note no dark subtraction; illumination is just ambient
 
+        # measure image-to-image translations
         xoff, yoff, exoff, eyoff = chi2_shift(sci_this, basis_frame)
         xoff_array.append(xoff)
         yoff_array.append(yoff)
         exoff_array.append(exoff)
         eyoff_array.append(eyoff)
 
-    ipdb.set_trace()
+        # use this for-loop to also plot blurring of pupil edge
+        plt.plot(sci_this[532,875:875+24], color='b', alpha=0.5, label='3 oclock')
+        plt.plot(sci_this[148:148+24,541], color='g', alpha=0.5, label='6 oclock')
+        plt.plot(sci_this[495,166:166+24], color='r', alpha=0.5, label='9 oclock')
+        plt.plot(sci_this[861:861+24,543], color='k', alpha=0.5, label='12 oclock')
+
+    file_name_pupil_plane_edge_blur = 'nirao_2_vibrations_pupil_plane_edge_blur.png'
+    ax.set_xlabel('x (pixel)')
+    ax.set_ylabel('Illumination (ADU)')
+    plt.title('NIRAO-2: Illumination change at four positions (colors) along pupil edge\n Vertical dashed lines: 1/50 of pupil diameter\n(black: 12 oclock position; blue: 3 oclock; green: 6 oclock; red: 9 oclock)')
+    ax.axvline(x=7, linestyle='--', color='gray')
+    ax.axvline(x=16.2, linestyle='--', color='gray')
+    plt.tight_layout()
+    plt.savefig(file_name_pupil_plane_edge_blur)
     
-
     # find euclidean distances from the basis image
-    d_array_frame_to_frame = np.sqrt( np.power((xoff), 2) + np.power((yoff), 2) )
+    d_array_frame_to_frame = np.sqrt( np.power((xoff_array), 2) + np.power((yoff_array), 2) )
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Average of Euclidean distances of pupil plane images from the basis image [pix]: {:.3f}'.format(np.mean(d_array_frame_to_frame)))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Standard deviation of centroid between separate images [pix]: {:.3f}'.format(np.std(d_array_frame_to_frame)))
 
-    def condition_3():
-        # TBD
-        '''
-        if np.mean(d_array_frame_to_frame) < 0.14: # pix
+    def condition_4():
+        if (np.std(d_array_frame_to_frame) < 0.14): # pix
             # standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm
             return True
         else:
             return False
-        '''
 
-    # sanity check: radius of confidence ellipse
-    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
-    sigma_x, sigma_y, _ = confidence_ellipse(x = xoff_array, y = yoff_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
+    # sanity check: size of 1-sigma confidence ellipse
+    file_name_pupil_plane_jitter = 'nirao_2_vibrations_pupil_plane_jitter.png'
+    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
     ax.scatter(xoff_array, yoff_array)
-    plt.show()
-    ipdb.set_trace()
-
+    ax.set_xlabel('x (pixel)')
+    ax.set_ylabel('y (pixel)')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.title('NIRAO-2: Pupil plane translations (discretized)')
+    plt.savefig(file_name_pupil_plane_jitter)
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
@@ -410,11 +424,21 @@ def main(data_date = '20240919'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
     # 0.1 * lambda/D @ 900 nm is equivalent to
     # 0.1 * (0.9e-6 m) * 206265" /( 4 m * 32.7e-3 "/pix) = 0.14 pix
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Stdev of PSF coordinate is < 0.1 * lambda/D @ 900 nm (0.14 pix)')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, x [pix, abs coords]: {:.3f}'.format(sigma_x))
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured stdev, y [pix, abs coords]: {:.3f}'.format(sigma_y))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion 1 of 4 for success: Change in FWHM of individual images will not exceed 0.1 λ/D @ 900 nm (0.14 pix)')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Condition fulfilled: ' + str(condition_1()))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
-    #logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion 2 of 4 for success: Standard deviation of centroid between separate images, will not exceed 0.1 λ/D @ 900 nm  (0.14 pix)')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Condition fulfilled: ' + str(condition_2()))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion 3 of 4 for success: Standard deviation of any blurring visible on pupil edges during single exposures will not exceed 1/50 of pupil diameter (14.2 pix)')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': (Inspect plot ' + file_name_pupil_plane_edge_blur + ')')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion 4 of 4 for success: Standard deviation of fixed position on pupil edge between exposures will not exceed 1/50 of pupil diameter (14.2 pix)')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Condition fulfilled: ' + str(condition_4()))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + file_name_focal_plane_jitter)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + file_name_pupil_plane_edge_blur)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + file_name_pupil_plane_jitter)
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
 
     '''
