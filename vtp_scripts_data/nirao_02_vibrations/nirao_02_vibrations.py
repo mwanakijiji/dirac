@@ -197,7 +197,7 @@ def dark_subt(raw_science_frame_file_names, dark_array):
     return median_frame
 
 
-def main(data_date = '20240919', focal_plane = True, pupil_plane = True):
+def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images = True):
     # 20240919 is the data used for the DRR
     # 20240927 is the follow-up data taken by Ross+
     # focal_plane (bool): process focal plane images?
@@ -223,9 +223,11 @@ def main(data_date = '20240919', focal_plane = True, pupil_plane = True):
     if data_date == '20240919':
         stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits') # darks from 20240919
+        badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
     elif data_date == '20240927':
         stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240927/'
         dark_frame_file_names = glob.glob('/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/calibs/darks/*.fits') # darks from 20240919
+        badpix_file_name = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/calibs/ersatz_bad_pix.fits'
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-02 Vibration test')
@@ -234,8 +236,6 @@ def main(data_date = '20240919', focal_plane = True, pupil_plane = True):
                 'Standard deviation of any blurring visible on pupil edges during single exposures, and standard deviation '+\
                 'of fixed position on pupil edge between exposures, will not exceed 1/50 of pupil diameter.')
     logger.info('-----------------------------------------------------')
-
-    badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -262,7 +262,7 @@ def main(data_date = '20240919', focal_plane = True, pupil_plane = True):
     sci_frame_focal_plane_file_names = glob.glob(stem + 'focal_plane_images/*fits')
     sci_frame_pupil_plane_file_names = glob.glob(stem + 'pupil_plane_images/*fits')
 
-    if focal_plane:
+    if focal_plane_images:
 
         ## ## PROCESS FOCAL-PLANE IMAGES
         # dark-subtract each frame, centroid on the spot
@@ -459,4 +459,4 @@ def main(data_date = '20240919', focal_plane = True, pupil_plane = True):
 
 if __name__ == "__main__":
     # 20240919 is the data used for the DRR
-    main(data_date = '20240927', focal_plane = False, pupil_plane = True)
+    main(data_date = '20240927', focal_plane_images = False, pupil_plane_images = True)
