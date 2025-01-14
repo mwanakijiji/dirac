@@ -281,7 +281,7 @@ def fit_gaussian(frame, center_guess):
     sigma_x_pix (float): Standard deviation in the x-direction.
     sigma_y_pix (float): Standard deviation in the y-direction.
     """
-
+    #ipdb.set_trace()
     y, x = np.indices(frame.shape)
     xy_mesh = (x, y)
     p0 = [np.max(frame), center_guess[0], center_guess[1], 1, 1, 0]
@@ -382,6 +382,56 @@ def main(data_date):
 
     if data_date == '20240807':
         stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240807/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_1_1sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_1sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_2_1sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_1sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_3_1sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_1sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_4_1sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_1sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_5_1sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_1sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_1_2sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_2sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_2_2sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_2sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_3_2sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_2sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_4_2sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_2sec/'
+        dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
+        #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
+        lambda_observation = 1.02 # um
+    elif data_date == '20240809_5_2sec':
+        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
@@ -652,4 +702,4 @@ def main(data_date):
 if __name__ == "__main__":
     # 20240710 is Y-band
     # 20240709 is H-band (different band from TBS PSF!)
-    main(data_date = '20240807')
+    main(data_date = '20240809_5_2sec')

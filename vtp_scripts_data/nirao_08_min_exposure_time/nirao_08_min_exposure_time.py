@@ -6,6 +6,7 @@ from astropy.io import fits
 import logging
 import datetime
 import glob
+import ipdb
 
 def main(data_date = '20240517'):
     # 20240517 is best data
@@ -19,10 +20,10 @@ def main(data_date = '20240517'):
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
 
     if data_date == '20240517':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_08_min_exposure_time/data/20240517/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_08_min_exposure_time/data/20240517/'
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-08 Minimum Exposure Time test')
@@ -40,7 +41,7 @@ def main(data_date = '20240517'):
 
     ## TBD: Check that frames are in CDS mode
 
-    # read in bias-only frames 
+    # read in bias-only frames
     if data_date == '20240517':
         file_list_biases = glob.glob(stem + 'DIRAC_20240517_115929.fits')
         file_list_biases += glob.glob(stem + 'DIRAC_20240517_1159[3-9]*.fits')
@@ -91,16 +92,38 @@ def main(data_date = '20240517'):
 
         diff = data_1 - data_2
 
+        # find read noise
         read_noise = np.nanstd(diff)/np.sqrt(2)
 
         read_noise_array_adu.append(read_noise)
 
 
-    plt.hist(read_noise_array_adu, bins=100)
-    plt.xlabel('read noise (e)')
-    plt.show()
+    read_noise_e_array = gain * np.array([read_noise_array_adu])
+    read_noise_e_mean = gain * np.mean( read_noise_array_adu )
 
-    read_noise_e = gain * np.mean( read_noise_array_adu )
+    hist_file_name = 'hist_nirao_08_min_exposure_time_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
+
+    plt.clf()
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+    # Global plot
+    ax1.hist(read_noise_e_array, bins=100)
+    ax1.axvline(x=18, linestyle='--', color='k', alpha=0.5)
+    ax1.set_xlabel('Read noise (e)')
+    ax1.set_title('global')
+
+    # Restricted x-axis plot
+    ax2.hist(read_noise_e_array, bins=100)
+    ax2.axvline(x=18, linestyle='--', color='k', alpha=0.5)
+    ax2.set_xlabel('Read noise (e)')
+    ax2.set_xlim([0, 30])  # Adjust the x-axis limits as needed
+    ax2.set_title('detail')
+
+    # Save the figure
+    plt.suptitle('Histogram of read noise\n(vertical line: success criterion)')
+    plt.tight_layout()
+    plt.savefig(hist_file_name)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote ' + hist_file_name)
         
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Exposure times of mix of flats and bias frames [sec]: ' + str(exp_times_array))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': -----------------------------------------------------')
@@ -112,18 +135,16 @@ def main(data_date = '20240517'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Max. exposure times of collection of flats and bias frames: ' + str(np.max(exp_times_array)))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ----------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Read noise [e]: < 18 ')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured read noise [e]: {:.2f}'.format(read_noise_e))
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Percent variation from ideal: {:.1f}%'.format(100 * np.abs(read_noise_e-18.)/18.))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured read noise [e]: {:.2f}'.format(read_noise_e_mean))
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Percent variation from ideal: {:.1f}%'.format(100 * np.abs(read_noise_e_mean-18.)/18.))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
     
-    '''
-    if read_noise_e < 18 and np.max(exp_times_array) <= 1.2:
+    if read_noise_e_mean < 18 and np.max(exp_times_array) <= 1.2:
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-08 result: PASS   ######')
     else:
         logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': ######   NIRAO-08 result: FAIL   ######')
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': --------------------------------------------------')
-    '''
 
 if __name__ == "__main__":
     main(data_date = '20240517')

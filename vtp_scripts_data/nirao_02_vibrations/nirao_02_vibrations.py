@@ -18,7 +18,6 @@ from skimage import color, data, restoration
 from image_registration import chi2_shift
 from scipy.optimize import curve_fit
 
-
 def fit_gaussian(frame, center_guess):
     """
     Fit a 2D Gaussian function to a given frame.
@@ -218,10 +217,10 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
 
     if data_date == '20240919':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_02_vibrations/data/20240919/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits') # darks from 20240919
         badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
     elif data_date == '20240927':
@@ -351,7 +350,7 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
                 return False
 
         # sanity check: size of 1-sigma confidence ellipse
-        file_name_focal_plane_jitter = 'nirao_2_vibrations_focal_plane_jitter.png'
+        file_name_focal_plane_jitter = 'nirao_2_vibrations_focal_plane_jitter_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
         fig, ax = plt.subplots(1, 1, figsize=(7, 5))
         sigma_x, sigma_y, _ = confidence_ellipse(x = x_cen_array, y = y_cen_array, ax=ax, n_std=1.0, edgecolor='red', facecolor='none')
         ax.scatter(x_cen_array, y_cen_array)
@@ -396,7 +395,7 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
             plt.plot(np.arange(len(sci_this[495,166:166+24])),sci_this[495,166:166+24], color='r', alpha=0.5, label='9 oclock')
             plt.plot(np.arange(len(sci_this[861:861+24,543])),sci_this[861:861+24,543], color='k', alpha=0.5, label='12 oclock')
 
-        file_name_pupil_plane_edge_blur = 'nirao_2_vibrations_pupil_plane_edge_blur.png'
+        file_name_pupil_plane_edge_blur = 'nirao_2_vibrations_pupil_plane_edge_blur_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
         ax.set_xlabel('x (pixel)')
         ax.set_ylabel('Illumination (ADU)')
         plt.title('NIRAO-2: Illumination change at four positions (colors) along pupil edge\n Vertical dashed lines: 1/50 of pupil diameter\n(black: 12 oclock position; blue: 3 oclock; green: 6 oclock; red: 9 oclock)')
@@ -418,7 +417,7 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
                 return False
 
         # sanity check: size of 1-sigma confidence ellipse
-        file_name_pupil_plane_jitter = 'nirao_2_vibrations_pupil_plane_jitter.png'
+        file_name_pupil_plane_jitter = 'nirao_2_vibrations_pupil_plane_jitter_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
         fig, ax = plt.subplots(1, 1, figsize=(7, 5))
         ax.scatter(xoff_array, yoff_array)
         ax.set_xlabel('x (pixel)')
@@ -459,4 +458,4 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
 
 if __name__ == "__main__":
     # 20240919 is the data used for the DRR
-    main(data_date = '20240927', focal_plane_images = False, pupil_plane_images = True)
+    main(data_date = '20240919', focal_plane_images = True, pupil_plane_images = True)

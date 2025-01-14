@@ -1,5 +1,3 @@
-# calculates the dark current
-
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
@@ -34,17 +32,23 @@ def main(data_date = '20240919'):
 
     # start logging
     log_file_name = 'log_nirao_01_installation_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.txt'
-    logging.basicConfig(filename=log_file_name, 
-                        level=logging.INFO, format='%(message)s')
+
+    logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(message)s',
+                    handlers=[
+                        logging.FileHandler(log_file_name),
+                        logging.StreamHandler()
+                    ])
+
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
 
     if data_date == '20240919':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_01_installation/data/20240919/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_01_installation/data/20240919/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits') # darks from 20240919
         position_baseline_frames = glob.glob(stem + 'position_baseline/*.fits')
         position_1_frames = glob.glob(stem + 'position_1/*.fits')
@@ -121,7 +125,7 @@ def main(data_date = '20240919'):
     # absolute distances from baseline
 
     # distances from the baseline
-    plot_file_name = 'nirao_01_installation.png'
+    plot_file_name = 'nirao_01_installation_' + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '.png'
     plt.scatter(x_cen_array, y_cen_array)
     circle = plt.Circle((x_cen_baseline, y_cen_baseline), radius=11, color='r', fill=False, linestyle='--')
     plt.gca().add_patch(circle)
@@ -159,4 +163,4 @@ def main(data_date = '20240919'):
 
 
 if __name__ == "__main__":
-    main()
+    main(data_date = '20240919')

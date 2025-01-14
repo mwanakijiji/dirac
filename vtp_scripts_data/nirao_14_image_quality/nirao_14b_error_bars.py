@@ -105,6 +105,6 @@ def main(dir_csvs):
 if __name__ == "__main__":
     
     # dir containing all the csvs we want to use
-    dir_csvs = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/testing/'
+    dir_csvs = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/error_bars_2sec_20240809/'
 
     main(dir_csvs = dir_csvs)
