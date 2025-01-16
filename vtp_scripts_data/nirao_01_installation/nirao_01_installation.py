@@ -62,6 +62,13 @@ def main(data_date = '20240919'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: PSF centroids '+\
                 'are within 22 pixels of each other across all images (corresponds to 0.2 mm camera position)')
     logger.info('-----------------------------------------------------')
+    logger.info('Dark frames: ' + str(dark_frame_file_names))
+    logger.info('Position baseline frames: ' + str(position_baseline_frames))
+    logger.info('Position 1 frames: ' + str(position_1_frames))
+    logger.info('Position 2 frames: ' + str(position_2_frames))
+    logger.info('Position 3 frames: ' + str(position_3_frames))
+    logger.info('Position 4 frames: ' + str(position_4_frames))
+    logger.info('Position 5 frames: ' + str(position_5_frames))
 
     badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
 
