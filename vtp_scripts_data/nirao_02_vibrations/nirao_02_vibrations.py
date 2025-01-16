@@ -235,6 +235,8 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
                 'Standard deviation of any blurring visible on pupil edges during single exposures, and standard deviation '+\
                 'of fixed position on pupil edge between exposures, will not exceed 1/50 of pupil diameter.')
     logger.info('-----------------------------------------------------')
+    logger.info('Dark frames: ' + str(dark_frame_file_names))
+    logger.info('Bad pixel frame: ' + str(badpix_file_name))
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -260,6 +262,9 @@ def main(data_date = '20240919', focal_plane_images = True, pupil_plane_images =
 
     sci_frame_focal_plane_file_names = glob.glob(stem + 'focal_plane_images/*fits')
     sci_frame_pupil_plane_file_names = glob.glob(stem + 'pupil_plane_images/*fits')
+
+    logger.info('Focal plane frames: ' + str(sci_frame_focal_plane_file_names))
+    logger.info('Pupil plane frames: ' + str(sci_frame_pupil_plane_file_names))
 
     if focal_plane_images:
 
