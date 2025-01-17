@@ -38,6 +38,7 @@ def main(dir_csvs):
     def read_files(file_pattern):
         # Read all files matching the pattern into a list of DataFrames
         files = glob.glob(file_pattern)
+        logger.info('Reading in ' + str(files))
         dataframes = [pd.read_csv(file) for file in files]
         return dataframes
 
@@ -105,6 +106,6 @@ def main(dir_csvs):
 if __name__ == "__main__":
     
     # dir containing all the csvs we want to use
-    dir_csvs = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/error_bars_2sec_20240809/'
+    dir_csvs = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/error_bars_2sec_20240809/'
 
     main(dir_csvs = dir_csvs)

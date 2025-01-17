@@ -48,6 +48,8 @@ def main(data_date = '20240517'):
         file_list_biases += glob.glob(stem + 'DIRAC_20240517_11[6-9]*.fits')
         file_list_biases += glob.glob(stem + 'DIRAC_20240517_1200[0-1]*.fits')
         file_list_biases += glob.glob(stem + 'DIRAC_20240517_120020*.fits')
+    
+    logger.info('Bias-only frames: ' + str(file_list_biases))
 
     # total number of pixels 
     sample_frame_file_name = file_list_biases[0]

@@ -26,9 +26,14 @@ def main(data_date = '20240517'):
     logger.info('-----------------------------------------------------')
 
     if data_date == '20240517':
-        dark_raw_file_name = stem + 'data/calibs/ersatz_dark.fits'
-        bias_file_name = stem + 'data/calibs/ersatz_bias.fits'
+        # ersatz files for now
+        dark_raw_file_name = stem + '../nirao_14_image_quality/data/20240710/calibs/darks/DIRAC_20240710_111216.fits'
+        bias_file_name = stem + '../nirao_14_image_quality/data/20240710/calibs/darks/DIRAC_20240710_111216.fits'
         badpix_file_name = stem + 'data/calibs/ersatz_bad_pix.fits'
+
+    logger.info('Dark frames: ' + str(dark_raw_file_name))
+    logger.info('Bias frames: ' + str(bias_file_name))
+    logger.info('Bad pixel mask: ' + str(badpix_file_name))
 
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Raw dark: ' + dark_raw_file_name)
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Bias: ' + bias_file_name)
@@ -44,7 +49,7 @@ def main(data_date = '20240517'):
     badpix = hdul_badpix[0].data
 
     # read in dark frame and mask bad pixels with NaNs
-    hdul_dark_raw = fits.open(dark_raw_file_name)
+    hdul_dark_raw = fits.open(dark_raw_file_name) 
     dark_raw = hdul_dark_raw[0].data.astype(np.float32) # convert to float to allow NaNs
     dark_raw[badpix == 1] = np.nan
 
@@ -81,6 +86,7 @@ def main(data_date = '20240517'):
     plt.title('Histogram of e- across detector')
     plt.xlabel('N_e in a pixel')
     plt.savefig(plot_file_name)
+    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
     '''
 
     # criterion for success:
@@ -90,7 +96,6 @@ def main(data_date = '20240517'):
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Fraction of bad pixels: {:.5f}'.format(1. - frac_finite))
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Criterion for success: Dark noise < 0.1 e-/px/sec')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Measured dark current: ' + str(dark_curr_e) + ' e/pix/sec')
-    logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': Wrote plot ' + plot_file_name)
     logger.info('--------------------------------------------------')
     if dark_curr_e < 0.1:
         logger.info('######   NIRAO-09 result: PASS   ######')

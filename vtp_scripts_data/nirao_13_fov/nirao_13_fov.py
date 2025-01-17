@@ -21,13 +21,12 @@ def main(data_date = '20240515'):
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
 
     if data_date == '20240517':
-        # N.b. check systematic that may be in this dataset
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_13_fov/data/20240517/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_13_fov/data/20240517/'
     elif data_date == '20240515':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_13_fov/data/20240515/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_13_fov/data/20240515/'
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-13 Field of View test')

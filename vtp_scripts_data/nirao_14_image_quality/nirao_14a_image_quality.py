@@ -1,4 +1,4 @@
-# calculates the dark current
+# calculates the strehl
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -377,83 +377,83 @@ def main(data_date):
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
     
 
     if data_date == '20240807':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240807/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240807/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_1_1sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_1sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_1sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_2_1sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_1sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_1sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_3_1sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_1sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_1sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_4_1sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_1sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_1sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_5_1sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_1sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_1sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_1_2sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_2sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_1_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_2_2sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_2sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_2_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_3_2sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_2sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_3_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_4_2sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_2sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_4_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240809_5_2sec':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_2sec/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240809_5_2sec/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240710':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240710/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240710/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_y_band # Y-band
         lambda_observation = 1.02 # um
     elif data_date == '20240709':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240709/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240709/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_h_band # H-band
         lambda_observation = 1.63 # um
         logger.warning('!!! Science data is in H-band; TBS PSF is in Y-band, so fixed-width Gaussians will not give accurate Strehl !!!')
     elif data_date == '20240715_fake_data_perfect':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240715_fake_data/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240715_fake_data/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_h_band # H-band
         lambda_observation = 1.02 # um
         logger.warning('!!! Fake data test !!!')
     elif data_date == '20240715_fake_data_noise_lower_strehl':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240715_fake_data_noise_lower_strehl/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_14_image_quality/data/20240715_fake_data_noise_lower_strehl/'
         dark_frame_file_names = glob.glob(stem + 'calibs/darks/*.fits')
         #sigma_x_fixed_pix_dirac = sigma_x_fixed_pix_dirac_h_band # H-band
         lambda_observation = 1.02 # um
@@ -466,6 +466,9 @@ def main(data_date):
     logger.info('-----------------------------------------------------')
 
     badpix_file_name = stem + 'calibs/ersatz_bad_pix.fits'
+
+    logger.info('Dark frames: ' + str(dark_frame_file_names))
+    logger.info('Bad pixel mask: ' + str(badpix_file_name))
 
     # bad pixel frame (0: good, 1: bad)
     # (N.b. these pixels are masked in the detector readout, not corrected)
@@ -502,7 +505,10 @@ def main(data_date):
     #fwhm_tbs_um = (np.min([tbs_fwhm_x_pix_tbs,tbs_fwhm_y_pix_tbs])) * 5.2 * 2 # option: min FWHM of TBS in DIRAC pixels
 
     # Read the text file with coord guesses into a Pandas DataFrame
-    df_coord_guesses = pd.read_csv(stem + 'filenames_coord_guesses.txt', delimiter=',')
+    csv_absolute_path = stem + 'filenames_coord_guesses.txt'
+    df_coord_guesses = pd.read_csv(csv_absolute_path, delimiter=',')
+    logger.info('Coord guesses being read in from ' + str(csv_absolute_path))
+    logger.info(df_coord_guesses)
     # make file names absolute
     df_coord_guesses['filename'] = stem + df_coord_guesses['filename']
     file_names = df_coord_guesses['filename'].values
@@ -535,6 +541,7 @@ def main(data_date):
         # read in science frame
         hdul = fits.open(file_name_this)
         sci_this = hdul[0].data
+        logger.info('Reading in frame ' + file_name_this)
 
         sci_this = sci_this.astype(float)
         sci_this[badpix == 1] = np.nan

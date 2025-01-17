@@ -38,12 +38,12 @@ def main(data_date = '20240517'):
     formatter = logging.Formatter('%(message)s')
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
 
     if data_date == '20240517':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_12_plate_scales/data/20240517/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_12_plate_scales/data/20240517/'
     elif data_date == '20240515':
-        stem = '/Users/bandari/Documents/git.repos/dirac/vtp_scripts_data/nirao_12_plate_scales/data/20240515/'
+        stem = '/Users/eckhartspalding/Documents/git.repos/dirac/vtp_scripts_data/nirao_12_plate_scales/data/20240515/'
 
     logger.info('-----------------------------------------------------')
     logger.info(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ': NIRAO-12 Plate Scale test')
@@ -156,6 +156,13 @@ def main(data_date = '20240517'):
         x_lr, y_lr = centroid_sources(data=lr, xpos=[], ypos=[], box_size=21, centroid_func=centroid_com)
         x_cen, y_cen = centroid_sources(data=cen, xpos=[], ypos=[], box_size=21, centroid_func=centroid_com)
         '''
+
+    logger.info('Upper-left spot raw frames: ' + str(ul_raw_frame_file_names))
+    logger.info('Upper-right spot raw frames: ' + str(ur_raw_frame_file_names))
+    logger.info('Lower-left spot raw frames: ' + str(ll_raw_frame_file_names))
+    logger.info('Lower-right spot raw frames: ' + str(lr_raw_frame_file_names))
+    logger.info('Center spot raw frames: ' + str(cen_raw_frame_file_names))
+
     # find the distances between them
 
     # UL del_x, del_y from center
